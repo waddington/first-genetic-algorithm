@@ -10,7 +10,7 @@ import javafx.scene.text.Text;
 import javafx.util.Duration;
 
 public class Controller {
-    int lengthOfEachRound = 10; // How many seconds in a round
+    private int lengthOfEachRound = 10; // How many seconds in a round
 
     // Play/Pause/Evolve Buttons
     @FXML
@@ -87,20 +87,7 @@ public class Controller {
     private void theLoop() {
         updateGameButtons(); // Update buttons based on game status
 
-        if (gameControlStatus == 0) { // If game state is "playing", update the countdown timer
-            long difference = playEndTime - System.currentTimeMillis(); // Calculating time remaining
-            int s = (int) difference/1000; // Getting the seconds remaining
-            String S = (s<10)?"0"+s:""+s; // Formatting
-
-            int ms = (int) (difference%1000) / 10; // Getting the milliseconds remaining and reducing to 2 decimal places
-            ms = (ms<0)?0:ms; // Ensuring time always ends on 0
-            String Ms = (ms<10)?"0"+ms:""+ms; // Formatting
-
-            textTimeRemaining.setText(S+"."+Ms+"s"); // Updating the text of the countdown timer to the time remaining
-
-            if (s <= 0 && ms <= 0) // Updating the game status when the timer reaches zero
-                gameControlStatus = 3;
-        }
+        if (gameControlStatus == 0) updateTimer(); // If game state is "playing", update the countdown timer
     }
 
     // Update the status of the buttons in the game
@@ -142,5 +129,20 @@ public class Controller {
     // Set the game to "play" - countdown timer then update game status
     private void playButtonClicked() {
         playEndTime = System.currentTimeMillis() + (lengthOfEachRound * 1000);
+    }
+
+    // Update the countdown timer
+    private void updateTimer() {
+        long difference = playEndTime - System.currentTimeMillis(); // Calculating time remaining
+        int s = (int) difference/1000; // Getting the seconds remaining
+        String S = (s < 10) ? "0"+s : ""+s; // Formatting
+
+        int ms = (int) (difference%1000) / 10; // Getting the milliseconds remaining and reducing to 2 decimal places
+        ms = (ms<0)?0:ms; // Ensuring time always ends on 0
+        String Ms = (ms < 10) ? "0"+ms : ""+ms; // Formatting
+
+        textTimeRemaining.setText(S+"."+Ms+"s"); // Updating the text of the countdown timer to the time remaining
+
+        if (s <= 0 && ms <= 0) gameControlStatus = 3; // Updating the game status when the timer reaches zero
     }
 }

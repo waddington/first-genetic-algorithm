@@ -55,7 +55,7 @@
             </VBox>
             <VBox alignment="TOP_CENTER" layoutX="36.0" layoutY="25.0" spacing="10.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 0 1 0;">
                <children>
-                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Fitness" underline="true" />
+                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Fitness (score)" underline="true" />
                   <HBox alignment="TOP_CENTER">
                      <children>
                         <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Best:" />
@@ -75,6 +75,64 @@
                         <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Mean" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
                         <Text fx:id="fitnessCountMean" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+               </children>
+               <padding>
+                  <Insets bottom="15.0" />
+               </padding>
+            </VBox>
+            <VBox alignment="TOP_CENTER" layoutX="36.0" layoutY="124.0" spacing="10.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 0 1 0;">
+               <children>
+                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Best Genetics" underline="true" />
+                  <HBox alignment="TOP_CENTER">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="k:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="fitnessCountBest1" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+                  <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="41.0">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="L:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="fitnessCountWorst1" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+                  <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="62.0">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Speed bias:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="fitnessCountMean1" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+               </children>
+               <padding>
+                  <Insets bottom="15.0" />
+               </padding>
+            </VBox>
+            <VBox alignment="TOP_CENTER" layoutX="36.0" layoutY="249.0" spacing="10.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 0 1 0;">
+               <children>
+                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Worst Genetics" underline="true" />
+                  <HBox alignment="TOP_CENTER">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="k:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="fitnessCountBest11" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+                  <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="41.0">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="L:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="fitnessCountWorst11" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+                  <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="62.0">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Speed bias:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="fitnessCountMean11" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
                      </children>
                   </HBox>
                </children>
