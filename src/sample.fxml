@@ -217,7 +217,7 @@
       </HBox>
    </top>
    <center>
-      <Pane fx:id="graphicsBox" maxHeight="-Infinity" maxWidth="-Infinity" prefHeight="520.0" prefWidth="700.0" style="-fx-background-color: FFF4D9; -fx-border-color: BCA97D; -fx-border-width: 2;" BorderPane.alignment="CENTER">
+      <Pane fx:id="graphicsBox" maxHeight="-Infinity" maxWidth="-Infinity" prefHeight="520.0" prefWidth="700.0" style="-fx-background-color: FFF4D9; -fx-border-color: BCA97D; -fx-border-width: 2; -fx-border-insets: -2;" BorderPane.alignment="CENTER">
          <opaqueInsets>
             <Insets />
          </opaqueInsets>
