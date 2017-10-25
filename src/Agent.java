@@ -7,7 +7,7 @@ public class Agent {
     int score; // time lasted * 10 + energy remaining
     double energyLevel; // 0.0001-100
     static int[] foodCoords; // Area is 700x520
-    static int foodEnergyBoost = 25;
+    static int foodEnergyBoost = 20;
     int[] currentPosition; // Area is 700x520
     int agentShapeRadius;
     static double m = 25; // For calculating energy used at different speeds x = (y - c) / m
