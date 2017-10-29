@@ -45,7 +45,7 @@
                      <children>
                         <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Population:" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
-                        <Text fx:id="informationPopulationCount" strokeType="OUTSIDE" strokeWidth="0.0" text="-- / 15" />
+                        <Text fx:id="informationPopulationCount" strokeType="OUTSIDE" strokeWidth="0.0" text="-- / --" />
                      </children>
                   </HBox>
                </children>
@@ -82,28 +82,42 @@
                   <Insets bottom="15.0" />
                </padding>
             </VBox>
-            <VBox alignment="TOP_CENTER" layoutX="36.0" layoutY="124.0" spacing="10.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 0 1 0;">
+            <VBox alignment="TOP_CENTER" layoutX="36.0" layoutY="124.0" spacing="5.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 0 1 0;">
                <children>
                   <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Best Genetics" underline="true" />
+                  <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="36.0">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="ID:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="geneticsBestId" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
                   <HBox alignment="TOP_CENTER">
                      <children>
-                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="k:" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="K:" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
-                        <Text fx:id="fitnessCountBest1" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                        <Text fx:id="geneticsBestK" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
                      </children>
                   </HBox>
                   <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="41.0">
                      <children>
-                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="L:" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="min-speed:" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
-                        <Text fx:id="fitnessCountWorst1" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                        <Text fx:id="geneticsBestMinSpeed" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
                      </children>
                   </HBox>
                   <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="62.0">
                      <children>
-                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Speed bias:" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="max-speed:" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
-                        <Text fx:id="fitnessCountMean1" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                        <Text fx:id="geneticsBestMaxSpeed" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+                  <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="94.0">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Direction:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="geneticsBestDirectionVariation" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
                      </children>
                   </HBox>
                </children>
@@ -111,28 +125,42 @@
                   <Insets bottom="15.0" />
                </padding>
             </VBox>
-            <VBox alignment="TOP_CENTER" layoutX="36.0" layoutY="249.0" spacing="10.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 0 1 0;">
+            <VBox alignment="TOP_CENTER" layoutX="36.0" layoutY="249.0" spacing="5.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 0 1 0;">
                <children>
                   <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Worst Genetics" underline="true" />
                   <HBox alignment="TOP_CENTER">
                      <children>
-                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="k:" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="ID:" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
-                        <Text fx:id="fitnessCountBest11" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                        <Text fx:id="geneticsWorstId" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+                  <HBox alignment="TOP_CENTER">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="K:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="geneticsWorstK" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
                      </children>
                   </HBox>
                   <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="41.0">
                      <children>
-                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="L:" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="min-speed:" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
-                        <Text fx:id="fitnessCountWorst11" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                        <Text fx:id="geneticsWorstMinSpeed" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
                      </children>
                   </HBox>
                   <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="62.0">
                      <children>
-                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Speed bias:" />
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="max-speed:" />
                         <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
-                        <Text fx:id="fitnessCountMean11" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                        <Text fx:id="geneticsWorstMaxSpeed" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
+                     </children>
+                  </HBox>
+                  <HBox alignment="TOP_CENTER" layoutX="10.0" layoutY="94.0">
+                     <children>
+                        <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Direction:" />
+                        <VBox alignment="CENTER" prefHeight="0.0" HBox.hgrow="ALWAYS" />
+                        <Text fx:id="geneticsWorstDirectionVariation" strokeType="OUTSIDE" strokeWidth="0.0" text="--" />
                      </children>
                   </HBox>
                </children>
@@ -167,7 +195,7 @@
             </VBox>
             <VBox alignment="BOTTOM_CENTER" prefHeight="200.0" prefWidth="200.0" style="-fx-border-color: A6A8B1; -fx-border-width: 0 1 0 0;">
                <children>
-                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Evolve x Generations" textAlignment="CENTER" underline="true" />
+                  <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Play x Generations" textAlignment="CENTER" underline="true" />
                   <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" spacing="15.0">
                      <children>
                         <Button fx:id="buttonSkipGeneration1x" focusTraversable="false" mnemonicParsing="false" onMouseClicked="#gameButtonClicked" text="1x" textAlignment="CENTER" />
@@ -199,7 +227,7 @@
                         <Insets right="20.0" />
                      </HBox.margin>
                   </Text>
-                  <Text fx:id="textTimeRemaining" strokeType="OUTSIDE" strokeWidth="0.0" text="10.00s">
+                  <Text fx:id="textTimeRemaining" strokeType="OUTSIDE" strokeWidth="0.0" text="00.00s">
                      <font>
                         <Font size="30.0" />
                      </font>

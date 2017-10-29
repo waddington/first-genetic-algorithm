@@ -15,6 +15,13 @@ import javafx.util.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 
+enum GameState {
+    PLAYING,
+    EVOLVING,
+    WAITING_EVOLVE,
+    WAITING_PLAY,
+}
+
 public class Controller {
     private int lengthOfEachRound = 10; // How many seconds in a round
 
@@ -22,7 +29,7 @@ public class Controller {
     @FXML
     Button controlButtonPlay;
     @FXML
-    Button controlButtonEvolve;// Skip-to generation buttons
+    Button controlButtonEvolve;// Skip-to generationCount buttons
     @FXML
     Button buttonSkipGeneration1x;
     @FXML
@@ -33,8 +40,7 @@ public class Controller {
     private String[] buttons = {"controlButtonPlay", "controlButtonEvolve", "buttonSkipGeneration1x", "buttonSkipGeneration5x", "buttonSkipGeneration10x"};
 
     // Status
-    private String[] gameStatusNameOptions = {"playing", "evolving", "skippingGens", "waitingForEvolve", "waitingForPlay"};
-    private int gameControlStatus;
+    private GameState gameControlStatus;
 
     // Time remaining
     @FXML
@@ -53,6 +59,29 @@ public class Controller {
     Text fitnessCountWorst;
     @FXML
     Text fitnessCountMean;
+
+    // Genetics information boxes
+    @FXML
+    Text geneticsBestId;
+    @FXML
+    Text geneticsBestK;
+    @FXML
+    Text geneticsBestMinSpeed;
+    @FXML
+    Text geneticsBestMaxSpeed;
+    @FXML
+    Text geneticsWorstId;
+    @FXML
+    Text geneticsWorstK;
+    @FXML
+    Text geneticsWorstMinSpeed;
+    @FXML
+    Text geneticsWorstMaxSpeed;
+    @FXML
+    Text geneticsBestDirectionVariation;
+    @FXML
+    Text geneticsWorstDirectionVariation;
+
 
     // Status bar
     @FXML
@@ -76,18 +105,24 @@ public class Controller {
     ArrayList<Circle> agentShapes;
     Rectangle food;
     boolean foodShouldMove;
+    int generationCount = 1;
 
     // Drawing stuff
     int agentShapeRadius = 3;
     int foodWidth = 10;
 
+    boolean shouldSkipGens = false;
+    int gensToSkip = 0;
+
     @FXML
     private void initialize() {
-        this.population = new Population(this.populationSize, this.agentShapeRadius); // Create the initial population
+        this.population = new Population(this.populationSize, this.agentShapeRadius, this.generationCount); // Create the initial population
         createFood();
-        this.agentShapes = createAgentShapes(); // Create the shapes for each agent
-
-        this.gameControlStatus = 4; // Set the initial game state to "Waiting for user to press play"
+        this.agentShapes = new ArrayList<>(); // Create the shapes for each agent
+        createAgentShapes();
+        this.gameControlStatus = GameState.WAITING_PLAY; // Set the initial game state to "Waiting for user to press play"
+        this.textTimeRemaining.setText(this.lengthOfEachRound+".00s");
+        this.informationPopulationCount.setText("--/"+this.populationSize);
 
         theLoopWrapper(); // Start the animation loop
     }
@@ -108,15 +143,23 @@ public class Controller {
     // Moving my loop code to a new function to keep code tidier
     private void theLoop() {
         updateGameButtons(); // Update buttons based on game status
-        if (this.gameControlStatus == 0 || this.gameControlStatus == 3 || this.gameControlStatus == 4) {
+        updateGameText(); // Update the text in the information windows
+        if (this.gameControlStatus == GameState.PLAYING || this.gameControlStatus == GameState.WAITING_EVOLVE || this.gameControlStatus == GameState.WAITING_PLAY) {
             drawAgents();
             drawFood();
         }
-        if (this.gameControlStatus == 0) { // If game state is "playing", update the countdown timer and allow agents to move
+        if (this.gameControlStatus == GameState.PLAYING) { // If game state is "playing", update the countdown timer and allow agents to move
             updateTimer();
+            refreshScores();
+            updateGameText();
             this.population.updateAgentPositions();
-            this.population.updateAgentEnergies();
+            this.population.updateAgentEnergies(this.textStatus);
             // TODO: merge update position and energy
+        }
+        if (this.gameControlStatus == GameState.EVOLVING) {
+            // Time to evolve the population
+            doPopulationEvolution();
+            this.gameControlStatus = GameState.WAITING_PLAY;
         }
     }
 
@@ -124,11 +167,10 @@ public class Controller {
     // Some can/cannot be clicked depending on what stage the game is in
     private void updateGameButtons() {
         switch (gameControlStatus) {
-            case 0: {setButtonDisabled(true,true,false,false,false);break;} // playing
-            case 1: {setButtonDisabled(true,true,true,true,true);break;} // evolving
-            case 2: {setButtonDisabled(true,true,true,true,true);break;} // skipping generations
-            case 3: {setButtonDisabled(true,false,false,false,false);break;} // waiting to evolve
-            case 4: {setButtonDisabled(false,true,false,false,false);break;} // waiting to play
+            case PLAYING: {setButtonDisabled(true,true,true,true,true);break;} // playing
+            case EVOLVING: {setButtonDisabled(true,true,true,true,true);break;} // evolving
+            case WAITING_EVOLVE: {setButtonDisabled(true,false,true,true,true);break;} // waiting to evolve
+            case WAITING_PLAY: {setButtonDisabled(false,true,false,false,false);break;} // waiting to play
         }
     }
 
@@ -147,11 +189,37 @@ public class Controller {
         if (event.getButton() == MouseButton.PRIMARY) { // We only want clicks from the primary button
             String buttonId = ((Button)event.getSource()).getId();
             switch (buttonId) {
-                case "controlButtonPlay": {gameControlStatus = 0;playButtonClicked();break;}
-                case "controlButtonEvolve": {gameControlStatus=1;break;}
-                case "buttonSkipGeneration1x": {gameControlStatus=2;break;}
-                case "buttonSkipGeneration5x": {gameControlStatus=2;break;}
-                case "buttonSkipGeneration10x": {gameControlStatus=2;break;}
+                case "controlButtonPlay": {
+                    gameControlStatus = GameState.PLAYING;
+                    playButtonClicked();
+                    break;
+                }
+                case "controlButtonEvolve": {
+                    gameControlStatus = GameState.EVOLVING;
+                    this.generationCount++;
+                    break;
+                }
+                case "buttonSkipGeneration1x": {
+                    gameControlStatus = GameState.PLAYING;
+                    this.shouldSkipGens = true;
+                    this.gensToSkip = 1;
+                    playButtonClicked();
+                    break;
+                }
+                case "buttonSkipGeneration5x": {
+                    gameControlStatus = GameState.PLAYING;
+                    this.shouldSkipGens = true;
+                    this.gensToSkip = 5;
+                    playButtonClicked();
+                    break;
+                }
+                case "buttonSkipGeneration10x": {
+                    gameControlStatus = GameState.PLAYING;
+                    this.shouldSkipGens = true;
+                    this.gensToSkip = 10;
+                    playButtonClicked();
+                    break;
+                }
             }
         }
     }
@@ -173,11 +241,22 @@ public class Controller {
 
         textTimeRemaining.setText(S+"."+Ms+"s"); // Updating the text of the countdown timer to the time remaining
 
-        if (s <= 0 && ms <= 0) gameControlStatus = 3; // Updating the game status when the timer reaches zero
+        if (s <= 0 && ms <= 0) {
+            gameControlStatus = GameState.WAITING_EVOLVE; // Updating the game status when the timer reaches zero
+            if (this.shouldSkipGens && (this.gensToSkip > 1)) {
+                this.gameControlStatus = GameState.EVOLVING;
+                this.generationCount++;
+                doPopulationEvolution();
+                this.gensToSkip--;
+                this.gameControlStatus = GameState.PLAYING;
+                playButtonClicked();
+            }
+        }
     }
 
     // Create the shapes that the agents will use
-    ArrayList<Circle> createAgentShapes() {
+    void createAgentShapes() {
+        this.agentShapes.clear();
         ArrayList<Circle> shapes = new ArrayList<>();
 
         for (int i=0; i<this.populationSize; i++) {
@@ -187,7 +266,7 @@ public class Controller {
             this.graphicsBox.getChildren().add(circle);
         }
 
-        return shapes;
+        this.agentShapes = shapes;
     }
 
     // Draw all the agents to the screen
@@ -195,7 +274,7 @@ public class Controller {
         int[][] agentPositions = this.population.getAgentPositions();
 
         for (int i=0; i<agentPositions.length; i++) {
-            if (this.population.agents.get(i).isAlive) {
+            if (this.population.agents.get(i).isAlive()) {
                 int[] position = agentPositions[i];
                 this.agentShapes.get(i).setCenterX(position[0]);
                 this.agentShapes.get(i).setCenterY(position[1]);
@@ -207,10 +286,11 @@ public class Controller {
                 int leftWall = this.population.getFoodCoords()[0] - (this.foodWidth / 2);
                 int rightWall = this.population.getFoodCoords()[0] + (this.foodWidth / 2);
 
+                // Collision check
                 if ((position[0] > leftWall) && (position[0] < rightWall) && (position[1] > topWall) && (position[1] < bottomWall)) {
                     this.foodShouldMove = true;
                     this.population.agents.get(i).giveFoodEnergyBoost();
-                    // TODO: give colliding agent an energy boost and some score
+                    this.textStatus.setText("Agent #"+this.population.agents.get(i).getId()+" received an energy boost from food.");
                 }
             } else {
                 this.agentShapes.get(i).setVisible(false);
@@ -244,5 +324,39 @@ public class Controller {
             foodShouldMove = false;
         }
         this.food.setVisible(true);
+    }
+
+    // update the text in the window
+    void updateGameText() {
+        this.informationGenerationNumber.setText(""+this.generationCount);
+        this.informationPopulationCount.setText(""+this.population.getCurrentPopulationSize()+"/"+this.populationSize);
+
+        this.fitnessCountBest.setText(""+this.population.getMaxScore());
+        this.fitnessCountWorst.setText(""+this.population.getMinScore());
+        this.fitnessCountMean.setText(""+(int)this.population.getMeanScore());
+
+        this.geneticsBestId.setText(""+this.population.getMaxScoreId());
+        this.geneticsBestK.setText(String.format("%.2f", this.population.getMaxScoreK()));
+        this.geneticsBestMaxSpeed.setText(String.format("%.2f", this.population.getMaxScoreMaxSpeed()));
+        this.geneticsBestMinSpeed.setText(String.format("%.2f", this.population.getMaxScoreMinSpeed()));
+        this.geneticsBestDirectionVariation.setText(String.format("%.2f", this.population.getMaxScoreDirectionVariation()));
+
+        this.geneticsWorstId.setText(""+this.population.getWorstScoreId());
+        this.geneticsWorstK.setText(String.format("%.2f", this.population.getWorstScoreK()));
+        this.geneticsWorstMaxSpeed.setText(String.format("%.2f",this.population.getWorstScoreMaxSpeed()));
+        this.geneticsWorstMinSpeed.setText(String.format("%.2f", this.population.getWorstScoreMinSpeed()));
+        this.geneticsWorstDirectionVariation.setText(String.format("%.2f", this.population.getWorstScoreDirectionVariation()));
+    }
+
+    // update the agents scores
+    void refreshScores() {
+        this.population.updateScores((this.playEndTime) - (this.lengthOfEachRound * 1000));
+    }
+
+    // Go through the evolution process
+    void doPopulationEvolution() {
+        this.population.doEvolution();
+        // re draw the agents
+        drawAgents();
     }
 }

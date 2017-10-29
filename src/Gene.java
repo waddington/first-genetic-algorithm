@@ -3,14 +3,15 @@ public class Gene {
     double maxSpeed;
     int[] startingArea;
     double K; // 0.75 - 1.25 // For sigmoid
+    double directionVariation; // For changing how direct the agent moves towards the food // +/-10
 
     // Constructor(s)
-    Gene() {}
-    public Gene(double minSpeed, double maxSpeed, int[] startingArea, double k) {
+    public Gene(double minSpeed, double maxSpeed, int[] startingArea, double k, double directionVariation) {
         this.minSpeed = minSpeed;
         this.maxSpeed = maxSpeed;
         this.startingArea = startingArea;
         this.K = k;
+        this.directionVariation = directionVariation;
     }
 
     // minSpeed
@@ -43,5 +44,13 @@ public class Gene {
     }
     void setK(double K) {
         this.K = K;
+    }
+
+    // directionVariation
+    double getDirectionVariation() {
+        return this.directionVariation;
+    }
+    void setDirectionVariation(double directionVariation) {
+        this.directionVariation = directionVariation;
     }
 }

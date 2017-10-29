@@ -1,10 +1,13 @@
+import javafx.scene.text.Text;
+
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Agent {
-    int id;
+    String id;
     boolean isAlive;
     Gene gene;
     int score; // time lasted * 10 + energy remaining
+    static int timeLasted;
     double energyLevel; // 0.0001-100
     static int[] foodCoords; // Area is 700x520
     static int foodEnergyBoost = 20;
@@ -14,7 +17,7 @@ public class Agent {
     static double c = -3; // For calculating energy used at different speeds x = (y - c) / m
 
     // Constructor(s)
-    Agent(int id, boolean isInitialPopulation, int agentShapeRadius) {
+    Agent(String id, boolean isInitialPopulation, int agentShapeRadius) {
         this.id = id;
         this.isAlive = true;
         this.score = 0;
@@ -25,7 +28,7 @@ public class Agent {
     }
 
     // id
-    int getId() {
+    String getId() {
         return this.id;
     }
 
@@ -41,6 +44,9 @@ public class Agent {
     Gene getGene() {
         return this.gene;
     }
+    void setGene(Gene gene) {
+        this.gene = gene;
+    }
 
     // score
     int getScore() {
@@ -48,6 +54,12 @@ public class Agent {
     }
     void setScore(int score) {
         this.score = score;
+    }
+    int updateScore() {
+        if (isAlive()) {
+            this.score = Agent.timeLasted + (int) this.getEnergyLevel();
+        }
+        return this.score;
     }
 
     // energyLevel
@@ -57,20 +69,26 @@ public class Agent {
     void setEnergyLevel(double energy) {
         this.energyLevel = energy;
     }
-    void updateEnergy() {
+    boolean updateEnergy(Text textStatus) {
+        // returns true if agent is still alive
         if (isAlive()) {
             double energyUsed = getEnergyUsedAtSpeed(getSpeedOfAgent());
             this.energyLevel -= energyUsed;
 
             if (this.energyLevel < 0.0001) {
                 this.isAlive = false;
-                System.out.println(this.id+" died");
+                textStatus.setText("DEATH: Agent #"+getId()+" ran out of energy and died.");
+                return false;
             }
+
+            return true;
         }
+        return false;
     }
     void giveFoodEnergyBoost() {
-        setEnergyLevel(getEnergyLevel() + Agent.foodEnergyBoost);
-        System.out.println(this.id+" given boost.");
+        setEnergyLevel((getEnergyLevel() + Agent.foodEnergyBoost));
+        if (getEnergyLevel() > 100) // Limit the maximum energy to 100
+            setEnergyLevel(100);
     }
 
     // foodCoords
@@ -90,7 +108,7 @@ public class Agent {
     }
 
     // Calculate the agents' next position
-    // Always moves directly toward food source
+    // Moves towards food source with some variation in direction
     // https://math.stackexchange.com/a/1630886
     void updatePosition() {
         // TODO: allow agent to move at slightly different gradient to add variation
@@ -105,8 +123,13 @@ public class Agent {
 
         double t = dt / d;
 
-        int xt = (int) ((t * x1) + ((1-t)*x0));
-        int yt = (int) ((t * y1) + ((1-t)*y0));
+        // Add some variation into the direction of the genes
+        // Also helps to avoid clustering
+        double xVariation = (ThreadLocalRandom.current().nextDouble(0,1) > 0.65) ? this.gene.getDirectionVariation() : this.gene.getDirectionVariation() * -1;
+        double yVariation = (ThreadLocalRandom.current().nextDouble(0,1) < 0.65) ? this.gene.getDirectionVariation() : this.gene.getDirectionVariation() * -1;
+
+        int xt = (int) (((t * x1) + ((1-t)*x0)) + (xVariation));
+        int yt = (int) (((t * y1) + ((1-t)*y0)) + (yVariation));
 
         setCurrentPosition(new int[]{xt,yt});
     }
@@ -160,10 +183,17 @@ public class Agent {
 
         double k = linearTransform(0,1, 0.75,1.25, (ThreadLocalRandom.current().nextDouble(0,1)));
 
-        Gene gene = new Gene(minSpeed, maxSpeed, startingArea, k);
+        double directionVariation = ThreadLocalRandom.current().nextDouble(-5, 5);
+
+        Gene gene = new Gene(minSpeed, maxSpeed, startingArea, k, directionVariation);
 
         this.currentPosition = startingArea;
 
         return gene;
+    }
+
+    // Update how long the agents have lasted
+    static void setTimeLasted(int timeLasted) {
+        Agent.timeLasted = timeLasted;
     }
 }
