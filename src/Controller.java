@@ -18,121 +18,136 @@ import java.util.concurrent.ThreadLocalRandom;
 enum GameState {
     PLAYING,
     EVOLVING,
-    WAITING_EVOLVE,
-    WAITING_PLAY,
+    WAITING_TO_EVOLVE,
+    WAITING_TO_PLAY
 }
 
 public class Controller {
-    private int lengthOfEachRound = 10; // How many seconds in a round
+    GameState gameState;
+    long currentPlayEndTime;
+    Timeline timeline;
+    AnimationTimer timer;
 
-    // Play/Pause/Evolve Buttons
-    @FXML
-    Button controlButtonPlay;
-    @FXML
-    Button controlButtonEvolve;// Skip-to generationCount buttons
-    @FXML
-    Button buttonSkipGeneration1x;
-    @FXML
-    Button buttonSkipGeneration5x;
-    @FXML
-    Button buttonSkipGeneration10x;
-    // Button overall view
-    private String[] buttons = {"controlButtonPlay", "controlButtonEvolve", "buttonSkipGeneration1x", "buttonSkipGeneration5x", "buttonSkipGeneration10x"};
+    int lengthOfEachRound = 5;
+    int fullPopulationSize = 20; // Use an even number
+    Population population;
 
-    // Status
-    private GameState gameControlStatus;
+    ArrayList<Circle> agentShapes;
+    int agentShapeSize = 3;
+    Rectangle foodShape;
+    int foodShapeSize = 10;
+    boolean foodShouldMove;
+
+    int currentGenerationCount;
+
+    boolean playingMultipleGenerations;
+    boolean playingEndlessMode;
+    int generationsLeftToSkip;
+
+    // Play/Evolve/skip-gens Buttons
+    @FXML Button controlButtonPlay;
+    @FXML Button controlButtonEvolve;
+    @FXML Button buttonPlayGeneration5x;
+    @FXML Button buttonPlayGeneration10x;
 
     // Time remaining
-    @FXML
-    Text textTimeRemaining;
+    @FXML Text textTimeRemaining;
 
     // Information box
-    @FXML
-    Text informationGenerationNumber;
-    @FXML
-    Text informationPopulationCount;
+    @FXML Text informationGenerationNumber;
+    @FXML Text informationPopulationCount;
 
     // Fitness information box
-    @FXML
-    Text fitnessCountBest;
-    @FXML
-    Text fitnessCountWorst;
-    @FXML
-    Text fitnessCountMean;
+    @FXML Text fitnessCountBest;
+    @FXML Text fitnessCountWorst;
+    @FXML Text fitnessCountMean;
 
-    // Genetics information boxes
-    @FXML
-    Text geneticsBestId;
-    @FXML
-    Text geneticsBestK;
-    @FXML
-    Text geneticsBestMinSpeed;
-    @FXML
-    Text geneticsBestMaxSpeed;
-    @FXML
-    Text geneticsWorstId;
-    @FXML
-    Text geneticsWorstK;
-    @FXML
-    Text geneticsWorstMinSpeed;
-    @FXML
-    Text geneticsWorstMaxSpeed;
-    @FXML
-    Text geneticsBestDirectionVariation;
-    @FXML
-    Text geneticsWorstDirectionVariation;
+    // Best genetics information box
+    @FXML Text geneticsBestId;
+    @FXML Text geneticsBestK;
+    @FXML Text geneticsBestMinSpeed;
+    @FXML Text geneticsBestMaxSpeed;
+    @FXML Text geneticsBestDirectionVariation;
 
+    // Worst genetics information box
+    @FXML Text geneticsWorstId;
+    @FXML Text geneticsWorstK;
+    @FXML Text geneticsWorstMinSpeed;
+    @FXML Text geneticsWorstMaxSpeed;
+    @FXML Text geneticsWorstDirectionVariation;
 
     // Status bar
-    @FXML
-    Text textStatus;
+    @FXML Text textStatus;
 
     // Graphics box
-    @FXML
-    Pane graphicsBox;
-
-    // Timer stuff
-    long playEndTime;
-
-    // Animation stuff
-    private Timeline timeline;
-    private AnimationTimer timer;
-
-    // Genetic Algorithm stuff starts
-    // Population
-    Population population;
-    int populationSize = 20;
-    ArrayList<Circle> agentShapes;
-    Rectangle food;
-    boolean foodShouldMove;
-    int generationCount = 1;
-
-    // Drawing stuff
-    int agentShapeRadius = 3;
-    int foodWidth = 10;
-
-    boolean shouldSkipGens = false;
-    int gensToSkip = 0;
+    @FXML Pane graphicsBox;
 
     @FXML
-    private void initialize() {
-        this.population = new Population(this.populationSize, this.agentShapeRadius, this.generationCount); // Create the initial population
-        createFood();
-        this.agentShapes = new ArrayList<>(); // Create the shapes for each agent
-        createAgentShapes();
-        this.gameControlStatus = GameState.WAITING_PLAY; // Set the initial game state to "Waiting for user to press play"
+    void initialize() {
+        this.currentGenerationCount = 1;
+        this.playingMultipleGenerations = false;
+        this.playingEndlessMode = false;
+        this.agentShapes = new ArrayList<>();
+
+        createPopulation();
+        createFoodObject();
+        createAgentObjects();
+
+        drawAgents();
+        drawFood();
+
+        this.gameState = GameState.WAITING_TO_PLAY;
         this.textTimeRemaining.setText(this.lengthOfEachRound+".00s");
-        this.informationPopulationCount.setText("--/"+this.populationSize);
+        this.informationPopulationCount.setText("--/"+this.fullPopulationSize);
 
-        theLoopWrapper(); // Start the animation loop
+        theLoopWrapper();
+    }
+
+    // Update game status depending on what button is clicked
+    @FXML
+    void gameButtonClicked(MouseEvent event) {
+        // We only want to listen to primary button clicks
+        if (event.getButton() == MouseButton.PRIMARY) {
+            String buttonId = ((Button) event.getSource()).getId();
+
+            switch (buttonId) {
+                case "controlButtonPlay": {
+                    playButtonClicked();
+                    break;
+                }
+                case "controlButtonEvolve": {
+                    this.gameState = GameState.EVOLVING;
+                    this.currentGenerationCount++;
+                    break;
+                }
+                case "buttonPlayGeneration5x": {
+                    this.playingMultipleGenerations = true;
+                    this.generationsLeftToSkip = 5;
+                    playButtonClicked();
+                    break;
+                }
+                case "buttonPlayGeneration10x": {
+                    this.playingMultipleGenerations = true;
+                    this.generationsLeftToSkip = 10;
+                    playButtonClicked();
+                    break;
+                }
+            }
+        }
+    }
+
+    // Set the game to play
+    void playButtonClicked() {
+        this.gameState = GameState.PLAYING;
+        this.currentPlayEndTime = System.currentTimeMillis() + (this.lengthOfEachRound * 1000);
     }
 
     // My loop timer function
     // https://stackoverflow.com/a/13060022/3259361
-    private void theLoopWrapper() {
+    void theLoopWrapper() {
         final Timeline timeline = new Timeline(
                 new KeyFrame(Duration.ZERO, actionEvent -> {
-                    theLoop(); // My function for all the code that should be looped over
+                    theLoop(); // My function for all the code that should be looped over - it's the last function in this file
                 }),
                 new KeyFrame(Duration.millis(1000/30))
         );
@@ -140,223 +155,207 @@ public class Controller {
         timeline.play();
     }
 
-    // Moving my loop code to a new function to keep code tidier
-    private void theLoop() {
-        updateGameButtons(); // Update buttons based on game status
-        updateGameText(); // Update the text in the information windows
-        if (this.gameControlStatus == GameState.PLAYING || this.gameControlStatus == GameState.WAITING_EVOLVE || this.gameControlStatus == GameState.WAITING_PLAY) {
-            drawAgents();
-            drawFood();
-        }
-        if (this.gameControlStatus == GameState.PLAYING) { // If game state is "playing", update the countdown timer and allow agents to move
-            updateTimer();
-            refreshScores();
-            updateGameText();
-            this.population.updateAgentPositions();
-            this.population.updateAgentEnergies(this.textStatus);
-            // TODO: merge update position and energy
-        }
-        if (this.gameControlStatus == GameState.EVOLVING) {
-            // Time to evolve the population
-            doPopulationEvolution();
-            this.gameControlStatus = GameState.WAITING_PLAY;
-        }
+    // Create the initial population of agents
+    void createPopulation() {
+        this.population = new Population(this.fullPopulationSize, this.agentShapeSize, this.foodShapeSize, this.currentGenerationCount);
     }
 
-    // Update the status of the buttons in the game
-    // Some can/cannot be clicked depending on what stage the game is in
-    private void updateGameButtons() {
-        switch (gameControlStatus) {
-            case PLAYING: {setButtonDisabled(true,true,true,true,true);break;} // playing
-            case EVOLVING: {setButtonDisabled(true,true,true,true,true);break;} // evolving
-            case WAITING_EVOLVE: {setButtonDisabled(true,false,true,true,true);break;} // waiting to evolve
-            case WAITING_PLAY: {setButtonDisabled(false,true,false,false,false);break;} // waiting to play
-        }
+    // Create the shape that will represent the food
+    void createFoodObject() {
+        int xPos = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(701-this.foodShapeSize));
+        int yPos = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(521-this.foodShapeSize));
+
+        this.foodShape = new Rectangle(xPos,yPos, this.foodShapeSize, this.foodShapeSize);
+        this.foodShape.setVisible(false);
+        this.foodShape.setFill(Color.RED);
+
+        this.foodShouldMove = false;
+
+        this.graphicsBox.getChildren().add(this.foodShape);
+
+        Agent.setFoodCoords(new int[] {xPos, yPos});
     }
 
-    // Function to set button disabled status
-    private void setButtonDisabled(boolean a, boolean b, boolean c, boolean d, boolean e) {
-        controlButtonPlay.setDisable(a);
-        controlButtonEvolve.setDisable(b);
-        buttonSkipGeneration1x.setDisable(c);
-        buttonSkipGeneration5x.setDisable(d);
-        buttonSkipGeneration10x.setDisable(e);
-    }
-
-    // Method to update game status depending on button clicked
-    @FXML
-    private void gameButtonClicked(MouseEvent event) {
-        if (event.getButton() == MouseButton.PRIMARY) { // We only want clicks from the primary button
-            String buttonId = ((Button)event.getSource()).getId();
-            switch (buttonId) {
-                case "controlButtonPlay": {
-                    gameControlStatus = GameState.PLAYING;
-                    playButtonClicked();
-                    break;
-                }
-                case "controlButtonEvolve": {
-                    gameControlStatus = GameState.EVOLVING;
-                    this.generationCount++;
-                    break;
-                }
-                case "buttonSkipGeneration1x": {
-                    gameControlStatus = GameState.PLAYING;
-                    this.shouldSkipGens = true;
-                    this.gensToSkip = 1;
-                    playButtonClicked();
-                    break;
-                }
-                case "buttonSkipGeneration5x": {
-                    gameControlStatus = GameState.PLAYING;
-                    this.shouldSkipGens = true;
-                    this.gensToSkip = 5;
-                    playButtonClicked();
-                    break;
-                }
-                case "buttonSkipGeneration10x": {
-                    gameControlStatus = GameState.PLAYING;
-                    this.shouldSkipGens = true;
-                    this.gensToSkip = 10;
-                    playButtonClicked();
-                    break;
-                }
-            }
-        }
-    }
-
-    // Set the game to "play" - countdown timer then update game status
-    private void playButtonClicked() {
-        playEndTime = System.currentTimeMillis() + (lengthOfEachRound * 1000);
-    }
-
-    // Update the countdown timer
-    private void updateTimer() {
-        long difference = playEndTime - System.currentTimeMillis(); // Calculating time remaining
-        int s = (int) difference/1000; // Getting the seconds remaining
-        String S = (s < 10) ? "0"+s : ""+s; // Formatting
-
-        int ms = (int) (difference%1000) / 10; // Getting the milliseconds remaining and reducing to 2 decimal places
-        ms = (ms<0)?0:ms; // Ensuring time always ends on 0
-        String Ms = (ms < 10) ? "0"+ms : ""+ms; // Formatting
-
-        textTimeRemaining.setText(S+"."+Ms+"s"); // Updating the text of the countdown timer to the time remaining
-
-        if (s <= 0 && ms <= 0) {
-            gameControlStatus = GameState.WAITING_EVOLVE; // Updating the game status when the timer reaches zero
-            if (this.shouldSkipGens && (this.gensToSkip > 1)) {
-                this.gameControlStatus = GameState.EVOLVING;
-                this.generationCount++;
-                doPopulationEvolution();
-                this.gensToSkip--;
-                this.gameControlStatus = GameState.PLAYING;
-                playButtonClicked();
-            }
-        }
-    }
-
-    // Create the shapes that the agents will use
-    void createAgentShapes() {
+    // Create the shapes that will represent the agents
+    void createAgentObjects() {
         this.agentShapes.clear();
-        ArrayList<Circle> shapes = new ArrayList<>();
 
-        for (int i=0; i<this.populationSize; i++) {
-            Circle circle = new Circle(0,0, this.agentShapeRadius);
-            circle.setVisible(false);
-            shapes.add(circle);
-            this.graphicsBox.getChildren().add(circle);
+        for (int i=0; i<this.fullPopulationSize; i++) {
+            Circle agentShape = new Circle(0,0, this.agentShapeSize);
+            agentShape.setVisible(false);
+
+            this.agentShapes.add(agentShape);
+            this.graphicsBox.getChildren().add(agentShape);
         }
-
-        this.agentShapes = shapes;
     }
 
-    // Draw all the agents to the screen
+    // Draw the agent objects to the screen
     void drawAgents() {
-        int[][] agentPositions = this.population.getAgentPositions();
+        String[] agentIds = this.population.getAllAgentIds();
 
-        for (int i=0; i<agentPositions.length; i++) {
-            if (this.population.agents.get(i).isAlive()) {
-                int[] position = agentPositions[i];
-                this.agentShapes.get(i).setCenterX(position[0]);
-                this.agentShapes.get(i).setCenterY(position[1]);
+        for (int i=0; i<agentIds.length; i++) {
+            Agent agent = this.population.getAgentById(agentIds[i]);
+            if (agent.isAlive()) {
+                int[] agentPosition = Utilities.fitToBounds(agent.getCurrentPosition(), this.agentShapeSize);
+
+                this.agentShapes.get(i).setCenterX(agentPosition[0]);
+                this.agentShapes.get(i).setCenterY(agentPosition[1]);
                 this.agentShapes.get(i).setVisible(true);
-
-                // If an agent is touching (within the radius of) the food then move the food
-                int topWall = this.population.getFoodCoords()[1] - (this.foodWidth / 2);
-                int bottomWall = this.population.getFoodCoords()[1] + (this.foodWidth / 2);
-                int leftWall = this.population.getFoodCoords()[0] - (this.foodWidth / 2);
-                int rightWall = this.population.getFoodCoords()[0] + (this.foodWidth / 2);
-
-                // Collision check
-                if ((position[0] > leftWall) && (position[0] < rightWall) && (position[1] > topWall) && (position[1] < bottomWall)) {
-                    this.foodShouldMove = true;
-                    this.population.agents.get(i).giveFoodEnergyBoost();
-                    this.textStatus.setText("Agent #"+this.population.agents.get(i).getId()+" received an energy boost from food.");
-                }
             } else {
                 this.agentShapes.get(i).setVisible(false);
             }
         }
     }
 
-    // Create the food shape
-    void createFood() {
-        int x = ThreadLocalRandom.current().nextInt((this.foodWidth),(701-this.foodWidth));
-        int y = ThreadLocalRandom.current().nextInt((this.foodWidth),(521-this.foodWidth));
-        this.food = new Rectangle(x, y, this.foodWidth, this.foodWidth);
-        this.food.setVisible(false);
-        this.food.setFill(Color.RED);
-
-        this.graphicsBox.getChildren().add(this.food);
-        this.foodShouldMove = false;
-
-        this.population.setFoodCoords(x,y);
-    }
-
-    // Draw the food to the screen
+    // Draw the food object on the screen
     void drawFood() {
-        // If the food should change location then give it a new location
         if (this.foodShouldMove) {
-            int newX = ThreadLocalRandom.current().nextInt((this.foodWidth),(701-this.foodWidth));
-            int newY = ThreadLocalRandom.current().nextInt((this.foodWidth),(521-this.foodWidth));
-            this.food.setX(newX);
-            this.food.setY(newY);
-            this.population.setFoodCoords(newX, newY);
-            foodShouldMove = false;
+            int newX = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(701-this.foodShapeSize));
+            int newY = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(521-this.foodShapeSize));
+
+            int[] newPositions = Utilities.fitToBounds(new int[] {newX, newY}, this.foodShapeSize);
+
+            this.foodShape.setX(newPositions[0]);
+            this.foodShape.setY(newPositions[1]);
+
+            Agent.setFoodCoords(newPositions);
+
+            this.foodShouldMove = false;
+            this.foodShape.setVisible(true);
+        } else {
+            this.foodShape.setVisible(true);
         }
-        this.food.setVisible(true);
     }
 
-    // update the text in the window
-    void updateGameText() {
-        this.informationGenerationNumber.setText(""+this.generationCount);
-        this.informationPopulationCount.setText(""+this.population.getCurrentPopulationSize()+"/"+this.populationSize);
+    // Check what state each of the buttons should be in
+    void updateGameButtons() {
+        switch (this.gameState) {
+            case PLAYING: {
+                setButtonDisabled(true,true,true,true);
+                break;
+            }
+            case EVOLVING: {
+                setButtonDisabled(true,true,true,true);
+                break;
+            }
+            case WAITING_TO_PLAY: {
+                setButtonDisabled(false,true,false,false);
+                break;
+            }
+            case WAITING_TO_EVOLVE: {
+                setButtonDisabled(true,false,true,true);
+                break;
+            }
+        }
+    }
 
-        this.fitnessCountBest.setText(""+this.population.getMaxScore());
-        this.fitnessCountWorst.setText(""+this.population.getMinScore());
+    // Function to set button disabled status
+    void setButtonDisabled(boolean playButton, boolean evolveButton, boolean play5Button, boolean play10Button) {
+        controlButtonPlay.setDisable(playButton);
+        controlButtonEvolve.setDisable(evolveButton);
+        buttonPlayGeneration5x.setDisable(play5Button);
+        buttonPlayGeneration10x.setDisable(play10Button);
+    }
+
+    // Update the text fields
+    void updateGameText() {
+        this.informationGenerationNumber.setText(""+this.currentGenerationCount);
+        this.informationPopulationCount.setText(""+this.population.getCurrentPopulationSize()+"/"+this.fullPopulationSize);
+
+        Agent bestAgent = this.population.getAgentById(this.population.getMaxScoreAgentId());
+        Agent worstAgent = this.population.getAgentById(this.population.getMinScoreAgentId());
+
+        this.fitnessCountBest.setText(""+bestAgent.getScore());
+        this.fitnessCountWorst.setText(""+worstAgent.getScore());
         this.fitnessCountMean.setText(""+(int)this.population.getMeanScore());
 
-        this.geneticsBestId.setText(""+this.population.getMaxScoreId());
-        this.geneticsBestK.setText(String.format("%.2f", this.population.getMaxScoreK()));
-        this.geneticsBestMaxSpeed.setText(String.format("%.2f", this.population.getMaxScoreMaxSpeed()));
-        this.geneticsBestMinSpeed.setText(String.format("%.2f", this.population.getMaxScoreMinSpeed()));
-        this.geneticsBestDirectionVariation.setText(String.format("%.2f", this.population.getMaxScoreDirectionVariation()));
+        this.geneticsBestId.setText(""+this.population.getMaxScoreAgentId());
+        this.geneticsBestK.setText(String.format("%.2f", bestAgent.getGene().getK()));
+        this.geneticsBestMaxSpeed.setText(String.format("%.2f", bestAgent.getGene().getMaxSpeed()));
+        this.geneticsBestMinSpeed.setText(String.format("%.2f", bestAgent.getGene().getMinSpeed()));
+        this.geneticsBestDirectionVariation.setText(String.format("%.2f", bestAgent.getGene().getDirectionVariation()));
 
-        this.geneticsWorstId.setText(""+this.population.getWorstScoreId());
-        this.geneticsWorstK.setText(String.format("%.2f", this.population.getWorstScoreK()));
-        this.geneticsWorstMaxSpeed.setText(String.format("%.2f",this.population.getWorstScoreMaxSpeed()));
-        this.geneticsWorstMinSpeed.setText(String.format("%.2f", this.population.getWorstScoreMinSpeed()));
-        this.geneticsWorstDirectionVariation.setText(String.format("%.2f", this.population.getWorstScoreDirectionVariation()));
+        this.geneticsWorstId.setText(""+this.population.getMinScoreAgentId());
+        this.geneticsWorstK.setText(String.format("%.2f", worstAgent.getGene().getK()));
+        this.geneticsWorstMaxSpeed.setText(String.format("%.2f",worstAgent.getGene().getMaxSpeed()));
+        this.geneticsWorstMinSpeed.setText(String.format("%.2f", worstAgent.getGene().getMinSpeed()));
+        this.geneticsWorstDirectionVariation.setText(String.format("%.2f", worstAgent.getGene().getDirectionVariation()));
     }
 
-    // update the agents scores
-    void refreshScores() {
-        this.population.updateScores((this.playEndTime) - (this.lengthOfEachRound * 1000));
+    // Update the count-down timer
+    void updateTimer() {
+        long difference = this.currentPlayEndTime - System.currentTimeMillis();
+
+        int secondsAsInt = (int) difference / 1000;
+        String seconds = (secondsAsInt < 10) ? "0"+secondsAsInt : ""+secondsAsInt;
+
+        int msAsInt = (int) (difference % 1000) / 10;
+        msAsInt = (msAsInt < 0) ? 0 : msAsInt;
+        String milliseconds = (msAsInt < 10) ? "0"+msAsInt : ""+msAsInt;
+
+        this.textTimeRemaining.setText(seconds+"."+milliseconds+"s");
+
+        if (secondsAsInt <= 0 && msAsInt <= 0) {
+            this.gameState = GameState.WAITING_TO_EVOLVE;
+        }
     }
 
-    // Go through the evolution process
+    // Get the latest agent scores
+    void updateScores() {
+        this.population.updateScores(this.currentPlayEndTime - (this.lengthOfEachRound * 1000));
+    }
+
+    // Update the agents' positions' and energies'
+    boolean updateAgents() {
+        return this.population.updateAgents(this.textStatus);
+    }
+
+    // Go through the evolutionary process
     void doPopulationEvolution() {
         this.population.doEvolution();
-        // re draw the agents
         drawAgents();
+    }
+
+    // All the code that will be looped over
+    void theLoop() {
+        if (this.gameState == GameState.WAITING_TO_PLAY && this.playingMultipleGenerations) {
+            if (this.generationsLeftToSkip >= 1) {
+                this.gameState = GameState.PLAYING;
+                playButtonClicked();
+            }
+        }
+
+        if (this.gameState == GameState.WAITING_TO_EVOLVE && this.playingMultipleGenerations) {
+            if (this.generationsLeftToSkip >= 1) {
+                this.gameState = GameState.EVOLVING;
+                this.currentGenerationCount++;
+                if (!this.playingEndlessMode)
+                    this.generationsLeftToSkip--;
+            } else {
+                this.playingMultipleGenerations = false;
+            }
+        }
+
+        updateGameButtons();
+
+        if (this.gameState == GameState.PLAYING ||
+            this.gameState == GameState.WAITING_TO_PLAY ||
+            this.gameState == GameState.WAITING_TO_EVOLVE ) {
+            drawAgents();
+            drawFood();
+            updateGameText();
+        }
+
+        if (this.gameState == GameState.PLAYING) {
+            updateTimer();
+            updateScores();
+            updateGameText();
+            this.foodShouldMove = updateAgents();
+        }
+
+        if (this.gameState == GameState.EVOLVING) {
+            doPopulationEvolution();
+            this.gameState = GameState.WAITING_TO_PLAY;
+        }
     }
 }

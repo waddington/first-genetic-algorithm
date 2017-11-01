@@ -198,9 +198,8 @@
                   <Text strokeType="OUTSIDE" strokeWidth="0.0" text="Play x Generations" textAlignment="CENTER" underline="true" />
                   <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" spacing="15.0">
                      <children>
-                        <Button fx:id="buttonSkipGeneration1x" focusTraversable="false" mnemonicParsing="false" onMouseClicked="#gameButtonClicked" text="1x" textAlignment="CENTER" />
-                        <Button fx:id="buttonSkipGeneration5x" focusTraversable="false" mnemonicParsing="false" onMouseClicked="#gameButtonClicked" text="5x" />
-                        <Button fx:id="buttonSkipGeneration10x" focusTraversable="false" mnemonicParsing="false" onMouseClicked="#gameButtonClicked" text="10x" />
+                        <Button fx:id="buttonPlayGeneration5x" focusTraversable="false" mnemonicParsing="false" onMouseClicked="#gameButtonClicked" text="5x" />
+                        <Button fx:id="buttonPlayGeneration10x" focusTraversable="false" mnemonicParsing="false" onMouseClicked="#gameButtonClicked" text="10x" />
                      </children>
                   </HBox>
                </children>
