@@ -1,272 +1,135 @@
-import javafx.scene.text.Text;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Random;
 
 public class Population {
-    private int fullPopulationSize;
-    private int currentPopulationSize;
-    private int currentGeneration;
+    int fullPopulationSize;
+    int currentPopulationSize;
+    double mutationRate;
 
-    private HashMap<String, Agent> agents; // Map agent ID to the agent so I can lookup the agent by its ID later
-    private ArrayList<Agent> agentsGoingToNextGeneration;
-    private ArrayList<Agent> newOffspringAgents;
+    int currentGeneration;
 
-    private int agentShapeSize;
+    Agent[] agents;
+    Agent[] safeParents;
+    Agent[] newAgents;
+    int agentSize;
 
-    private String maxScoreAgentId;
-    private String minScoreAgentId;
-    private double meanScore;
+    int agentMaximumSteps;
+    int[] nestCoordinates;
 
-    Population(int fullPopulationSize, int agentShapeSize, int foodShapeSize, int currentGeneration) {
+    Random random;
+
+    Population(int fullPopulationSize, int agentSize, int agentMaximumSteps, int[] nestCoordinates, double mutationRate) {
         this.fullPopulationSize = fullPopulationSize;
-        this.agentShapeSize = agentShapeSize;
-        Agent.setAgentShapeSize(agentShapeSize);
-        Agent.setFoodShapeSize(foodShapeSize);
-        this.currentGeneration = currentGeneration;
-
-        this.agents = new HashMap<>();
-        this.agentsGoingToNextGeneration = new ArrayList<>();
-        this.newOffspringAgents = new ArrayList<>();
-
         this.currentPopulationSize = 0;
-        this.maxScoreAgentId = null;
-        this.minScoreAgentId = null;
+        this.mutationRate = mutationRate;
 
-        createInitialPopulation();
-    }
+        this.currentGeneration = 1;
 
-    // Getters and Setters
-    int getFullPopulationSize() {
-        return this.fullPopulationSize;
-    }
-    void setFullPopulationSize(int fullPopulationSize) {
-        this.fullPopulationSize = fullPopulationSize;
-    }
+        this.agents = new Agent[fullPopulationSize];
+        this.agentSize = agentSize;
 
-    int getCurrentPopulationSize() {
-        return this.currentPopulationSize;
-    }
-    void setCurrentPopulationSize(int currentPopulationSize) {
-        this.currentPopulationSize = currentPopulationSize;
+        this.safeParents = new Agent[(int)Math.floor(this.agents.length / 2)];
+        this.newAgents = new Agent[this.fullPopulationSize - this.safeParents.length];
+
+        this.agentMaximumSteps = agentMaximumSteps;
+        Agent.agentMaximumSteps = agentMaximumSteps;
+        this.nestCoordinates = nestCoordinates;
+
+        this.random = new Random();
+
+        createPopulation();
     }
 
-    int getCurrentGeneration() {
-        return this.currentGeneration;
-    }
-    void setCurrentGeneration(int currentGeneration) {
-        this.currentGeneration = currentGeneration;
-    }
-
-    int getAgentShapeSize() {
-        return this.agentShapeSize;
-    }
-    void setAgentShapeSize(int agentShapeSize) {
-        this.agentShapeSize = agentShapeSize;
-    }
-
-    String getMaxScoreAgentId() {
-        return this.maxScoreAgentId;
-    }
-    void setMaxScoreAgentId(String maxScoreAgentId) {
-        this.maxScoreAgentId = maxScoreAgentId;
-    }
-
-    String getMinScoreAgentId() {
-        return this.minScoreAgentId;
-    }
-    void setMinScoreAgentId(String minScoreAgentId) {
-        this.minScoreAgentId = minScoreAgentId;
-    }
-
-    double getMeanScore() {
-        return this.meanScore;
-    }
-    void setMeanScore(int meanScore) {
-        this.meanScore = meanScore;
-    }
-
-    Agent getAgentById(String id) {
-        return this.agents.get(id);
-    }
-    void addAgentToMasterList(String id, Agent agent) {
-        this.agents.put(id, agent);
-        setCurrentPopulationSize(getCurrentPopulationSize()+1);
-    }
-
-    // Create the first population
-    void createInitialPopulation() {
-        while (getCurrentPopulationSize() < getFullPopulationSize()) {
-
-            String id = "G"+getCurrentGeneration()+"-"+(getCurrentPopulationSize()+1);
+    void createPopulation() {
+        for (int i=0; i<this.fullPopulationSize; i++) {
+            String agentId = "G"+this.currentGeneration+"-"+(this.currentPopulationSize+1);
+            Gene agentGene = createRandomGene();
+            Rectangle agentShape = createAgentShape();
 
             Agent agent = new Agent();
-            Gene gene = createRandomGene();
-
-            agent.setId(id);
-            agent.setGene(gene);
+            agent.setId(agentId);
+            agent.setGene(agentGene);
+            agent.setShape(agentShape);
             agent.setAlive(true);
-            agent.setScore(0);
-            agent.setEnergyLevel(100);
-            agent.setCurrentPosition(gene.getStartingPosition());
+            agent.setGotScore(false);
+            agent.setCurrentStepNumber(0);
+            agent.setCurrentCoordinates(this.nestCoordinates);
 
-            addAgentToMasterList(id, agent);
+            this.agents[i] = agent;
         }
 
-        this.maxScoreAgentId = "G1-1";
-        this.minScoreAgentId = "G1-1";
+        this.currentPopulationSize = this.agents.length;
     }
 
-    // Create a new gene with random values
     Gene createRandomGene() {
-        double minSpeed = Utilities.linearTransform(0,1, 3,6, (ThreadLocalRandom.current().nextDouble(0,1)));
-        double maxSpeed = Utilities.linearTransform(0,1, 9,12, (ThreadLocalRandom.current().nextDouble(0,1)));
-        int startX = ThreadLocalRandom.current().nextInt(getAgentShapeSize(), (701-getAgentShapeSize()));
-        int startY = ThreadLocalRandom.current().nextInt(getAgentShapeSize(), (521-getAgentShapeSize()));
-        double k = Utilities.linearTransform(0,1, 0.75,1.25, (ThreadLocalRandom.current().nextDouble(0,1)));
-        double directionVariation = ThreadLocalRandom.current().nextDouble(-5, 5);
+        String[] steps = new String[this.agentMaximumSteps*2];
+
+        for (int i=0; i<this.agentMaximumSteps; i++) {
+            steps[i] = (this.random.nextDouble() > 0.5) ? "1" : "0";
+        }
 
         Gene gene = new Gene();
-        gene.setMinSpeed(minSpeed);
-        gene.setMaxSpeed(maxSpeed);
-        gene.setStartingPosition(new int[] {startX, startY});
-        gene.setK(k);
-        gene.setDirectionVariation(directionVariation);
+        gene.setSteps(steps);
 
         return gene;
     }
 
-    // Get the IDs of all current agents
-    String[] getAllAgentIds() {
-        String[] agentIds = new String[this.agents.size()];
+    Rectangle createAgentShape() {
+        Color color = Color.CORNFLOWERBLUE;
+        Rectangle shape = new Rectangle(0,0, this.agentSize, this.agentSize);
+        shape.setFill(color);
+        shape.setOpacity(0.6);
 
-        Iterator iterator = this.agents.entrySet().iterator();
-        int i = 0;
-
-        while (iterator.hasNext()) {
-            Map.Entry pair = (Map.Entry) iterator.next();
-            String agentId = (String) pair.getKey();
-
-            agentIds[i] = agentId;
-
-            i++;
-        }
-
-        return agentIds;
+        return shape;
     }
 
-    // Update the scores of each agent
-    void updateScores(long currentPlayStartTime) {
-        int maxScore = Integer.MIN_VALUE;
-        int minScore = Integer.MAX_VALUE;
-        int localMeanScore = 0;
-
-        long difference = System.currentTimeMillis() - currentPlayStartTime;
-        int seconds = (int) difference / 1000;
-        int milliseconds = (int) difference % 1000;
-
-        Agent.setTimeLasted((seconds * 10) + (milliseconds / 100));
-
-        Iterator iterator = this.agents.entrySet().iterator();
-
-        while (iterator.hasNext()) {
-            Map.Entry pair = (Map.Entry) iterator.next();
-            String agentId = (String) pair.getKey();
-            Agent agent = (Agent) pair.getValue();
-
-            int score = agent.updateScore();
-            localMeanScore += score;
-
-            if (score > maxScore) {
-                maxScore = score;
-                setMaxScoreAgentId(agentId);
-            }
-
-            if (score < minScore) {
-                minScore = score;
-                setMinScoreAgentId(agentId);
-            }
-        }
-
-        localMeanScore /= getFullPopulationSize();
-        setMeanScore(localMeanScore);
+    Agent[] getAgents() {
+        return this.agents;
     }
 
-    // Update the agents' energy and positions
-    boolean updateAgents(Text textStatus) {
-        boolean foodShouldMove = false;
-
-        int currentLiveAgentCount = 0;
-
-        Iterator iterator = this.agents.entrySet().iterator();
-
-        while (iterator.hasNext()) {
-            Map.Entry pair = (Map.Entry) iterator.next();
-            String agentId = (String) pair.getKey();
-            Agent agent = (Agent) pair.getValue();
-
-            boolean agentFoodCollision = agent.updatePosition();
-
-            if (!foodShouldMove && agentFoodCollision)
-                foodShouldMove = true;
-
-
-            boolean agentStillAlive = agent.updateEnergy(textStatus);
-            if (agentStillAlive) {
-                currentLiveAgentCount++;
-            }
-        }
-
-        setCurrentPopulationSize(currentLiveAgentCount);
-        return foodShouldMove;
-    }
-
-    // Start the evolutionary process
     void doEvolution() {
-        setCurrentGeneration(getCurrentGeneration()+1);
-        this.newOffspringAgents.clear();
+        this.currentGeneration++;
 
-        // Remove ~50% of the agents
         removeHalfAgents();
 
-        // Selection
-        // Crossover
         expandPopulation();
 
-        // Mutation
-        // Accepting
+        mutateNewAgents();
+
+        redistributeAgentShapes();
         collateNewPopulation();
     }
 
     void removeHalfAgents() {
-        ArrayList<Agent> currentAgents = new ArrayList<>();
+        // Taking 50% of agents
+        Arrays.sort(this.agents, new AgentScoreComparator().reversed());
 
-        Iterator iterator = agents.entrySet().iterator();
+        this.safeParents = new Agent[this.safeParents.length];
 
-        while (iterator.hasNext()) {
-            Map.Entry pair = (Map.Entry) iterator.next();
-            currentAgents.add((Agent) pair.getValue());
+        int perc0 = 0;
+        int perc10 = (int) Math.floor(this.agents.length * 0.1);
+        int perc20 = (int) Math.floor(this.agents.length * 0.2);
+        int perc30 = (int) Math.floor(this.agents.length * 0.3);
+        int perc40 = (int) Math.floor(this.agents.length * 0.4);
+        int perc50 = (int) Math.floor(this.agents.length * 0.5);
+        int perc60 = (int) Math.floor(this.agents.length * 0.6);
+        int perc70 = (int) Math.floor(this.agents.length * 0.7);
+        int perc80 = (int) Math.floor(this.agents.length * 0.8);
+        int perc90 = (int) Math.floor(this.agents.length * 0.9);
+        int perc100 = this.agents.length;
+
+        int indexTracker = 0;
+        for (int i=0; i<this.agents.length; i++) {
+            if (i >= perc0 && i < perc40)
+                this.safeParents[indexTracker++] = this.agents[i];
+
+            if (i >= perc60 && i< perc70)
+                this.safeParents[indexTracker++] = this.agents[i];
         }
-
-        currentAgents.sort(Comparator.comparing(Agent::getScore).reversed());
-
-        int lower1 = (int) (currentAgents.size() * 0.1);
-        int upper1 = (int) (currentAgents.size() * 0.15);
-        int lower2 = (int) (currentAgents.size() * 0.5);
-        int upper2 = (int) (currentAgents.size() * 0.85);
-
-        for (int i=currentAgents.size()-1; i>=0; i--) {
-            if (i <= upper2 && i >= lower2)
-                currentAgents.remove(i);
-            if (i <= upper1 && i >= lower1)
-                currentAgents.remove(i);
-        }
-
-        // Ensure we have an even amount of agents
-        if (currentAgents.size()%2 != 0)
-            currentAgents.remove(currentAgents.size()-1);
-
-        this.agentsGoingToNextGeneration = currentAgents;
     }
 
     void expandPopulation() {
@@ -274,22 +137,22 @@ public class Population {
         // https://en.wikipedia.org/wiki/Stochastic_universal_sampling
         double sumOfFitness = 0;
         double previousProbability = 0;
-        double[] agentProbabilities = new double[this.agentsGoingToNextGeneration.size()];
+        double[] agentProbabilities = new double[this.safeParents.length];
 
-        for (int i=0; i<this.agentsGoingToNextGeneration.size(); i++) {
-            sumOfFitness += this.agentsGoingToNextGeneration.get(i).getScore();
+        for (Agent agent: this.safeParents) {
+            sumOfFitness += agent.getScore();
         }
 
-        for (int i=0; i<this.agentsGoingToNextGeneration.size(); i++) {
-            agentProbabilities[i] = previousProbability + (this.agentsGoingToNextGeneration.get(i).getScore() / sumOfFitness);
+        for (int i=0; i<this.safeParents.length; i++) {
+            agentProbabilities[i] = previousProbability + (safeParents[i].getScore() / sumOfFitness);
             previousProbability = agentProbabilities[i];
         }
 
-        int numberOfNewAgentsRequired = getFullPopulationSize() - this.agentsGoingToNextGeneration.size();
-
+        int numNewAgentsRequired = this.fullPopulationSize - this.safeParents.length;
         int idCounter = 1;
+        // Create some agents
+        while (numNewAgentsRequired > 1) {
 
-        while (numberOfNewAgentsRequired > 1) {
             double randomValueForParentSelectionA = Math.random();
             double randomValueForParentSelectionB = Math.random();
 
@@ -316,82 +179,137 @@ public class Population {
                 i++;
             }
 
-            Agent parentA = this.agentsGoingToNextGeneration.get(parentPositionA);
-            Agent parentB = this.agentsGoingToNextGeneration.get(parentPositionB);
+            Agent parentA = this.safeParents[parentPositionA];
+            Agent parentB = this.safeParents[parentPositionB];
 
-            // Create offspring using single-point crossover
             createOffspring(parentA, parentB, idCounter);
 
             idCounter += 2;
-            numberOfNewAgentsRequired -= 2;
+            numNewAgentsRequired -= 2;
         }
     }
 
     void createOffspring(Agent parentA, Agent parentB, int idCounter) {
-        // Create offspring using single-point crossover
-        // min-speed | max-speed, starting area (half and half), k, directionVariation
+        // Use uniform crossover
         Gene a = parentA.getGene();
         Gene b = parentB.getGene();
 
-        int[] startA = new int[] {a.getStartingPosition()[0], b.getStartingPosition()[1]};
-        int[] startB = new int[] {b.getStartingPosition()[0], a.getStartingPosition()[1]};
+        String[] stepsA = a.getSteps();
+        String[] stepsB = b.getSteps();
+
+        String[] childStepsA = new String[stepsA.length];
+        String[] childStepsB = new String[stepsB.length];
+
+        for (int i=0; i<stepsA.length; i++) {
+            String stepA = stepsA[i];
+            String stepB = stepsB[i];
+
+            int shouldSwap = (Math.random() > 0.5) ? 1 : 0;
+
+            if (shouldSwap > 0) {
+                childStepsA[i] = stepB;
+                childStepsB[i] = stepA;
+            } else {
+                childStepsA[i] = stepA;
+                childStepsB[i] = stepB;
+            }
+        }
 
         Gene childGeneA = new Gene();
-        childGeneA.setMinSpeed(a.getMinSpeed());
-        childGeneA.setMaxSpeed(b.getMaxSpeed());
-        childGeneA.setStartingPosition(startB);
-        childGeneA.setK(b.getK());
-        childGeneA.setDirectionVariation(b.getDirectionVariation());
-
+        childGeneA.setSteps(childStepsA);
         Gene childGeneB = new Gene();
-        childGeneB.setMinSpeed(b.getMinSpeed());
-        childGeneB.setMaxSpeed(a.getMaxSpeed());
-        childGeneB.setStartingPosition(startA);
-        childGeneB.setK(a.getK());
-        childGeneB.setDirectionVariation(a.getDirectionVariation());
+        childGeneB.setSteps(childStepsB);
 
-        String idA = "G"+getCurrentGeneration()+"-"+idCounter;
-        String idB = "G"+getCurrentGeneration()+"-"+(idCounter+1);
+        String idA = "G"+this.currentGeneration+"-"+idCounter;
+        String idB = "G"+this.currentGeneration+"-"+(idCounter+1);
 
         Agent childAgentA = new Agent();
         childAgentA.setId(idA);
         childAgentA.setGene(childGeneA);
         childAgentA.setAlive(true);
         childAgentA.setScore(0);
-        childAgentA.setEnergyLevel(100);
-        childAgentA.setCurrentPosition(childGeneA.getStartingPosition());
+        childAgentA.setCurrentStepNumber(0);
+        childAgentA.setCurrentCoordinates(this.nestCoordinates);
 
         Agent childAgentB = new Agent();
         childAgentB.setId(idB);
         childAgentB.setGene(childGeneB);
         childAgentB.setAlive(true);
         childAgentB.setScore(0);
-        childAgentB.setEnergyLevel(100);
-        childAgentB.setCurrentPosition(childGeneB.getStartingPosition());
+        childAgentB.setCurrentStepNumber(0);
+        childAgentB.setCurrentCoordinates(this.nestCoordinates);
 
-        this.newOffspringAgents.add(childAgentA);
-        this.newOffspringAgents.add(childAgentB);
+        this.newAgents[idCounter-1] = childAgentA;
+        this.newAgents[idCounter] = childAgentB;
+    }
+
+    void mutateNewAgents() {
+        for (Agent agent: this.newAgents) {
+            Gene gene = agent.getGene();
+            String[] steps = gene.getSteps();
+
+            for (int i=0; i<steps.length; i++) {
+                int shouldFlip = (Math.random() <= this.mutationRate) ? 1 : 0;
+
+                if (shouldFlip == 1) {
+                    if ("0".equals(steps[i])) {
+                        steps[i] = "1";
+                    } else {
+                        steps[i] = "0";
+                    }
+                }
+            }
+
+            gene.setSteps(steps);
+            agent.setGene(gene);
+        }
+    }
+
+    void redistributeAgentShapes() {
+        // Go through all old agents and take their shapes and reassign them
+
+        Rectangle[] shapes = new Rectangle[this.agents.length];
+
+        for (int i=0; i<this.agents.length; i++) {
+            shapes[i] = this.agents[i].getShape();
+        }
+
+        for (int i=0; i<this.safeParents.length; i++) {
+            this.safeParents[i].setShape(shapes[2*i]);
+            this.newAgents[i].setShape(shapes[(2*i)+1]);
+        }
     }
 
     void collateNewPopulation() {
-        this.agents.clear();
+        this.agents = new Agent[this.agents.length];
 
-        for (int i=0; i<this.agentsGoingToNextGeneration.size(); i++) {
-            Agent agent = this.agentsGoingToNextGeneration.get(i);
+        for (int i=0; i<this.safeParents.length; i++) {
+            this.agents[2*i] = this.safeParents[i];
+            this.agents[(2*i)+1] = this.newAgents[i];
+        }
+
+        for (Agent agent: this.agents) {
             agent.setAlive(true);
+            agent.setGotScore(false);
             agent.setScore(0);
-            agent.setEnergyLevel(100);
-            agent.setCurrentPosition(agent.getGene().getStartingPosition());
-            String id = agent.getId();
-            addAgentToMasterList(id, agent);
+            agent.setCurrentStepNumber(0);
+            agent.setCurrentCoordinates(this.nestCoordinates);
         }
+    }
 
-        for (int i=0; i<this.newOffspringAgents.size(); i++) {
-            Agent agent = this.newOffspringAgents.get(i);
-            String id = agent.getId();
-            addAgentToMasterList(id, agent);
+    void countPopulation() {
+        int populationSize = 0;
+        for (Agent agent: this.agents) {
+            if (agent.isAlive())
+                populationSize++;
         }
+        this.currentPopulationSize = populationSize;
+    }
 
-        setCurrentPopulationSize(this.agents.size());
+    // Custom comparator for agent scores
+    class AgentScoreComparator implements Comparator<Agent> {
+        public int compare(Agent a1, Agent a2) {
+            return Integer.compare(a1.getScore(), a2.getScore());
+        }
     }
 }

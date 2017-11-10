@@ -1,145 +1,81 @@
-import javafx.animation.AnimationTimer;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.fxml.FXML;
-import javafx.scene.control.Button;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import javafx.util.Duration;
 
 import java.util.ArrayList;
-import java.util.concurrent.ThreadLocalRandom;
-
-enum GameState {
-    PLAYING,
-    EVOLVING,
-    WAITING_TO_EVOLVE,
-    WAITING_TO_PLAY
-}
+import java.util.HashSet;
 
 public class Controller {
-    GameState gameState;
-    long currentPlayEndTime;
-    Timeline timeline;
-    AnimationTimer timer;
-
-    int lengthOfEachRound = 5;
-    int fullPopulationSize = 20; // Use an even number
+    int fullPopulationSize = 60;
     Population population;
+    double mutationRate = 0.01;
 
-    ArrayList<Circle> agentShapes;
-    int agentShapeSize = 3;
-    Rectangle foodShape;
-    int foodShapeSize = 10;
-    boolean foodShouldMove;
+    int agentMaximumSteps = 2000;
+    int movesPerSecond = 50;
 
-    int currentGenerationCount;
+    int boardWidth = 700;
+    int boardHeight = 500;
+    int tileSize = 10;
 
-    boolean playingMultipleGenerations;
-    boolean playingEndlessMode;
-    int generationsLeftToSkip;
+    ArrayList<Wall> walls;
+    HashSet<String> wallCoordinates;
 
-    // Play/Evolve/skip-gens Buttons
-    @FXML Button controlButtonPlay;
-    @FXML Button controlButtonEvolve;
-    @FXML Button buttonPlayGeneration5x;
-    @FXML Button buttonPlayGeneration10x;
+    int[] nestCoordintates = new int[] {5, 5};
+    int[] targetCoordinates = new int[] {40, 43};
 
-    // Time remaining
-    @FXML Text textTimeRemaining;
+    boolean roundEnded;
+    boolean allScoresCalculated;
 
-    // Information box
-    @FXML Text informationGenerationNumber;
-    @FXML Text informationPopulationCount;
+    AStar astar;
 
-    // Fitness information box
+    ScoreTracker scoreTracker;
+
+    // Information boxes
     @FXML Text fitnessCountBest;
     @FXML Text fitnessCountWorst;
     @FXML Text fitnessCountMean;
 
-    // Best genetics information box
-    @FXML Text geneticsBestId;
-    @FXML Text geneticsBestK;
-    @FXML Text geneticsBestMinSpeed;
-    @FXML Text geneticsBestMaxSpeed;
-    @FXML Text geneticsBestDirectionVariation;
-
-    // Worst genetics information box
-    @FXML Text geneticsWorstId;
-    @FXML Text geneticsWorstK;
-    @FXML Text geneticsWorstMinSpeed;
-    @FXML Text geneticsWorstMaxSpeed;
-    @FXML Text geneticsWorstDirectionVariation;
-
-    // Status bar
-    @FXML Text textStatus;
+    @FXML Text informationGenerationNumber;
+    @FXML Text informationPopulationCount;
 
     // Graphics box
-    @FXML Pane graphicsBox;
+    @FXML
+    Pane graphicsBox;
 
     @FXML
     void initialize() {
-        this.currentGenerationCount = 1;
-        this.playingMultipleGenerations = false;
-        this.playingEndlessMode = false;
-        this.agentShapes = new ArrayList<>();
+        this.population = new Population(this.fullPopulationSize, this.tileSize, this.agentMaximumSteps, this.nestCoordintates, this.mutationRate);
+        this.walls = new ArrayList<>();
+        this.wallCoordinates = new HashSet<>();
+        this.roundEnded = false;
+        this.allScoresCalculated = false;
 
-        createPopulation();
-        createFoodObject();
-        createAgentObjects();
+        this.scoreTracker = new ScoreTracker(this.fullPopulationSize, this.mutationRate);
 
-        drawAgents();
-        drawFood();
+        createWalls();
+        addWallsToPane();
 
-        this.gameState = GameState.WAITING_TO_PLAY;
-        this.textTimeRemaining.setText(this.lengthOfEachRound+".00s");
-        this.informationPopulationCount.setText("--/"+this.fullPopulationSize);
+        createAndRenderNest();
+        createAndRenderTarget();
+
+        this.astar = new AStar(this.wallCoordinates, this.targetCoordinates, this.boardWidth, this.boardHeight, this.tileSize);
+
+        addAgentsToPane();
 
         theLoopWrapper();
     }
 
-    // Update game status depending on what button is clicked
     @FXML
     void gameButtonClicked(MouseEvent event) {
         // We only want to listen to primary button clicks
-        if (event.getButton() == MouseButton.PRIMARY) {
-            String buttonId = ((Button) event.getSource()).getId();
-
-            switch (buttonId) {
-                case "controlButtonPlay": {
-                    playButtonClicked();
-                    break;
-                }
-                case "controlButtonEvolve": {
-                    this.gameState = GameState.EVOLVING;
-                    this.currentGenerationCount++;
-                    break;
-                }
-                case "buttonPlayGeneration5x": {
-                    this.playingMultipleGenerations = true;
-                    this.generationsLeftToSkip = 5;
-                    playButtonClicked();
-                    break;
-                }
-                case "buttonPlayGeneration10x": {
-                    this.playingMultipleGenerations = true;
-                    this.generationsLeftToSkip = 10;
-                    playButtonClicked();
-                    break;
-                }
-            }
-        }
-    }
-
-    // Set the game to play
-    void playButtonClicked() {
-        this.gameState = GameState.PLAYING;
-        this.currentPlayEndTime = System.currentTimeMillis() + (this.lengthOfEachRound * 1000);
+        if (event.getButton() == MouseButton.PRIMARY) {}
     }
 
     // My loop timer function
@@ -149,213 +85,476 @@ public class Controller {
                 new KeyFrame(Duration.ZERO, actionEvent -> {
                     theLoop(); // My function for all the code that should be looped over - it's the last function in this file
                 }),
-                new KeyFrame(Duration.millis(1000/30))
+                new KeyFrame(Duration.millis(1000/this.movesPerSecond))
         );
         timeline.setCycleCount(Timeline.INDEFINITE);
         timeline.play();
     }
 
-    // Create the initial population of agents
-    void createPopulation() {
-        this.population = new Population(this.fullPopulationSize, this.agentShapeSize, this.foodShapeSize, this.currentGenerationCount);
-    }
+    void addAgentsToPane() {
+        Agent[] agents = this.population.getAgents();
 
-    // Create the shape that will represent the food
-    void createFoodObject() {
-        int xPos = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(701-this.foodShapeSize));
-        int yPos = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(521-this.foodShapeSize));
-
-        this.foodShape = new Rectangle(xPos,yPos, this.foodShapeSize, this.foodShapeSize);
-        this.foodShape.setVisible(false);
-        this.foodShape.setFill(Color.RED);
-
-        this.foodShouldMove = false;
-
-        this.graphicsBox.getChildren().add(this.foodShape);
-
-        Agent.setFoodCoords(new int[] {xPos, yPos});
-    }
-
-    // Create the shapes that will represent the agents
-    void createAgentObjects() {
-        this.agentShapes.clear();
-
-        for (int i=0; i<this.fullPopulationSize; i++) {
-            Circle agentShape = new Circle(0,0, this.agentShapeSize);
-            agentShape.setVisible(false);
-
-            this.agentShapes.add(agentShape);
-            this.graphicsBox.getChildren().add(agentShape);
+        for (Agent agent: agents) {
+            this.graphicsBox.getChildren().add(agent.getShape());
         }
     }
 
-    // Draw the agent objects to the screen
-    void drawAgents() {
-        String[] agentIds = this.population.getAllAgentIds();
+    int[] coordinatesToPixel(int[] coordinates) {
+        int[] pixelPosition = new int[] {coordinates[0], coordinates[1]};
 
-        for (int i=0; i<agentIds.length; i++) {
-            Agent agent = this.population.getAgentById(agentIds[i]);
+        pixelPosition[0] *= this.tileSize;
+        pixelPosition[1] *= this.tileSize;
+
+        return pixelPosition;
+    }
+
+    void createWalls() {
+        this.wallCoordinates.add("0-"+"15");
+        this.wallCoordinates.add("0-"+"16");
+        this.wallCoordinates.add("1-"+"15");
+        this.wallCoordinates.add("1-"+"16");
+        this.wallCoordinates.add("2-"+"15");
+        this.wallCoordinates.add("2-"+"16");
+        this.wallCoordinates.add("3-"+"15");
+        this.wallCoordinates.add("3-"+"16");
+        this.wallCoordinates.add("4-"+"15");
+        this.wallCoordinates.add("4-"+"16");
+        this.wallCoordinates.add("5-"+"15");
+        this.wallCoordinates.add("5-"+"16");
+        this.wallCoordinates.add("6-"+"15");
+        this.wallCoordinates.add("6-"+"16");
+        this.wallCoordinates.add("7-"+"15");
+        this.wallCoordinates.add("7-"+"16");
+        this.wallCoordinates.add("8-"+"15");
+        this.wallCoordinates.add("8-"+"16");
+        this.wallCoordinates.add("9-"+"15");
+        this.wallCoordinates.add("9-"+"16");
+        this.wallCoordinates.add("10-"+"15");
+        this.wallCoordinates.add("10-"+"16");
+        this.wallCoordinates.add("11-"+"15");
+        this.wallCoordinates.add("11-"+"16");
+        this.wallCoordinates.add("12-"+"15");
+        this.wallCoordinates.add("12-"+"16");
+        this.wallCoordinates.add("13-"+"15");
+        this.wallCoordinates.add("13-"+"16");
+        this.wallCoordinates.add("14-"+"15");
+        this.wallCoordinates.add("14-"+"16");
+        this.wallCoordinates.add("15-"+"15");
+        this.wallCoordinates.add("15-"+"16");
+        this.wallCoordinates.add("16-"+"15");
+        this.wallCoordinates.add("16-"+"16");
+        this.wallCoordinates.add("17-"+"15");
+        this.wallCoordinates.add("17-"+"16");
+        this.wallCoordinates.add("18-"+"15");
+        this.wallCoordinates.add("18-"+"16");
+        this.wallCoordinates.add("19-"+"15");
+        this.wallCoordinates.add("19-"+"16");
+        this.wallCoordinates.add("20-"+"15");
+        this.wallCoordinates.add("20-"+"16");
+        this.wallCoordinates.add("21-"+"15");
+        this.wallCoordinates.add("21-"+"16");
+        this.wallCoordinates.add("22-"+"15");
+        this.wallCoordinates.add("22-"+"16");
+        this.wallCoordinates.add("23-"+"15");
+        this.wallCoordinates.add("23-"+"16");
+        this.wallCoordinates.add("24-"+"15");
+        this.wallCoordinates.add("24-"+"16");
+        this.wallCoordinates.add("25-"+"15");
+        this.wallCoordinates.add("25-"+"16");
+
+        this.wallCoordinates.add("24-"+"14");
+        this.wallCoordinates.add("25-"+"14");
+        this.wallCoordinates.add("24-"+"13");
+        this.wallCoordinates.add("25-"+"13");
+        this.wallCoordinates.add("24-"+"12");
+        this.wallCoordinates.add("25-"+"12");
+        this.wallCoordinates.add("24-"+"11");
+        this.wallCoordinates.add("25-"+"11");
+        this.wallCoordinates.add("24-"+"10");
+        this.wallCoordinates.add("25-"+"10");
+        this.wallCoordinates.add("24-"+"9");
+        this.wallCoordinates.add("25-"+"9");
+
+        this.wallCoordinates.add("40-"+"0");
+        this.wallCoordinates.add("41-"+"0");
+        this.wallCoordinates.add("40-"+"1");
+        this.wallCoordinates.add("41-"+"1");
+        this.wallCoordinates.add("40-"+"2");
+        this.wallCoordinates.add("41-"+"2");
+        this.wallCoordinates.add("40-"+"3");
+        this.wallCoordinates.add("41-"+"3");
+        this.wallCoordinates.add("40-"+"4");
+        this.wallCoordinates.add("41-"+"4");
+        this.wallCoordinates.add("40-"+"5");
+        this.wallCoordinates.add("41-"+"5");
+        this.wallCoordinates.add("40-"+"6");
+        this.wallCoordinates.add("41-"+"6");
+        this.wallCoordinates.add("40-"+"7");
+        this.wallCoordinates.add("41-"+"7");
+        this.wallCoordinates.add("40-"+"8");
+        this.wallCoordinates.add("41-"+"8");
+        this.wallCoordinates.add("40-"+"9");
+        this.wallCoordinates.add("41-"+"9");
+        this.wallCoordinates.add("40-"+"10");
+        this.wallCoordinates.add("41-"+"10");
+        this.wallCoordinates.add("40-"+"11");
+        this.wallCoordinates.add("41-"+"11");
+        this.wallCoordinates.add("40-"+"12");
+        this.wallCoordinates.add("41-"+"12");
+        this.wallCoordinates.add("40-"+"13");
+        this.wallCoordinates.add("41-"+"13");
+        this.wallCoordinates.add("40-"+"14");
+        this.wallCoordinates.add("41-"+"14");
+        this.wallCoordinates.add("40-"+"15");
+        this.wallCoordinates.add("41-"+"15");
+        this.wallCoordinates.add("40-"+"16");
+        this.wallCoordinates.add("41-"+"16");
+        this.wallCoordinates.add("40-"+"17");
+        this.wallCoordinates.add("41-"+"17");
+        this.wallCoordinates.add("40-"+"18");
+        this.wallCoordinates.add("41-"+"18");
+        this.wallCoordinates.add("40-"+"19");
+        this.wallCoordinates.add("41-"+"19");
+        this.wallCoordinates.add("40-"+"20");
+        this.wallCoordinates.add("41-"+"20");
+        this.wallCoordinates.add("40-"+"21");
+        this.wallCoordinates.add("41-"+"21");
+        this.wallCoordinates.add("40-"+"22");
+        this.wallCoordinates.add("41-"+"22");
+        this.wallCoordinates.add("40-"+"23");
+        this.wallCoordinates.add("41-"+"23");
+        this.wallCoordinates.add("40-"+"24");
+        this.wallCoordinates.add("41-"+"24");
+        this.wallCoordinates.add("40-"+"25");
+        this.wallCoordinates.add("41-"+"25");
+        this.wallCoordinates.add("40-"+"26");
+        this.wallCoordinates.add("41-"+"26");
+
+        this.wallCoordinates.add("39-"+"25");
+        this.wallCoordinates.add("39-"+"26");
+        this.wallCoordinates.add("38-"+"25");
+        this.wallCoordinates.add("38-"+"26");
+        this.wallCoordinates.add("37-"+"25");
+        this.wallCoordinates.add("37-"+"26");
+        this.wallCoordinates.add("36-"+"25");
+        this.wallCoordinates.add("36-"+"26");
+        this.wallCoordinates.add("35-"+"25");
+        this.wallCoordinates.add("35-"+"26");
+        this.wallCoordinates.add("34-"+"25");
+        this.wallCoordinates.add("34-"+"26");
+        this.wallCoordinates.add("33-"+"25");
+        this.wallCoordinates.add("33-"+"26");
+        this.wallCoordinates.add("32-"+"25");
+        this.wallCoordinates.add("32-"+"26");
+        this.wallCoordinates.add("31-"+"25");
+        this.wallCoordinates.add("31-"+"26");
+        this.wallCoordinates.add("30-"+"25");
+        this.wallCoordinates.add("30-"+"26");
+        this.wallCoordinates.add("29-"+"25");
+        this.wallCoordinates.add("29-"+"26");
+        this.wallCoordinates.add("28-"+"25");
+        this.wallCoordinates.add("28-"+"26");
+        this.wallCoordinates.add("27-"+"25");
+        this.wallCoordinates.add("27-"+"26");
+        this.wallCoordinates.add("26-"+"25");
+        this.wallCoordinates.add("26-"+"26");
+        this.wallCoordinates.add("25-"+"25");
+        this.wallCoordinates.add("25-"+"26");
+        this.wallCoordinates.add("24-"+"25");
+        this.wallCoordinates.add("24-"+"26");
+        this.wallCoordinates.add("23-"+"25");
+        this.wallCoordinates.add("23-"+"26");
+        this.wallCoordinates.add("22-"+"25");
+        this.wallCoordinates.add("22-"+"26");
+        this.wallCoordinates.add("21-"+"25");
+        this.wallCoordinates.add("21-"+"26");
+        this.wallCoordinates.add("20-"+"25");
+        this.wallCoordinates.add("20-"+"26");
+
+        this.wallCoordinates.add("34-"+"49");
+        this.wallCoordinates.add("35-"+"49");
+        this.wallCoordinates.add("34-"+"48");
+        this.wallCoordinates.add("35-"+"48");
+        this.wallCoordinates.add("34-"+"47");
+        this.wallCoordinates.add("35-"+"47");
+        this.wallCoordinates.add("34-"+"46");
+        this.wallCoordinates.add("35-"+"46");
+        this.wallCoordinates.add("34-"+"45");
+        this.wallCoordinates.add("35-"+"45");
+        this.wallCoordinates.add("34-"+"44");
+        this.wallCoordinates.add("35-"+"44");
+        this.wallCoordinates.add("34-"+"43");
+        this.wallCoordinates.add("35-"+"43");
+        this.wallCoordinates.add("34-"+"42");
+        this.wallCoordinates.add("35-"+"42");
+        this.wallCoordinates.add("34-"+"41");
+        this.wallCoordinates.add("35-"+"41");
+        this.wallCoordinates.add("34-"+"40");
+        this.wallCoordinates.add("35-"+"40");
+        this.wallCoordinates.add("34-"+"39");
+        this.wallCoordinates.add("35-"+"39");
+        this.wallCoordinates.add("34-"+"38");
+        this.wallCoordinates.add("35-"+"38");
+        this.wallCoordinates.add("34-"+"37");
+        this.wallCoordinates.add("35-"+"37");
+        this.wallCoordinates.add("34-"+"36");
+        this.wallCoordinates.add("35-"+"36");
+
+        this.wallCoordinates.add("36-"+"36");
+        this.wallCoordinates.add("36-"+"37");
+        this.wallCoordinates.add("37-"+"36");
+        this.wallCoordinates.add("37-"+"37");
+        this.wallCoordinates.add("38-"+"36");
+        this.wallCoordinates.add("38-"+"37");
+        this.wallCoordinates.add("39-"+"36");
+        this.wallCoordinates.add("39-"+"37");
+        this.wallCoordinates.add("40-"+"36");
+        this.wallCoordinates.add("40-"+"37");
+        this.wallCoordinates.add("41-"+"36");
+        this.wallCoordinates.add("41-"+"37");
+        this.wallCoordinates.add("42-"+"36");
+        this.wallCoordinates.add("42-"+"37");
+        this.wallCoordinates.add("43-"+"36");
+        this.wallCoordinates.add("43-"+"37");
+        this.wallCoordinates.add("44-"+"36");
+        this.wallCoordinates.add("44-"+"37");
+        this.wallCoordinates.add("45-"+"36");
+        this.wallCoordinates.add("45-"+"37");
+        this.wallCoordinates.add("46-"+"36");
+        this.wallCoordinates.add("46-"+"37");
+        this.wallCoordinates.add("47-"+"36");
+        this.wallCoordinates.add("47-"+"37");
+        this.wallCoordinates.add("48-"+"36");
+        this.wallCoordinates.add("48-"+"37");
+        this.wallCoordinates.add("49-"+"36");
+        this.wallCoordinates.add("49-"+"37");
+        this.wallCoordinates.add("50-"+"36");
+        this.wallCoordinates.add("50-"+"37");
+        this.wallCoordinates.add("51-"+"36");
+        this.wallCoordinates.add("51-"+"37");
+        this.wallCoordinates.add("52-"+"36");
+        this.wallCoordinates.add("52-"+"37");
+        this.wallCoordinates.add("53-"+"36");
+        this.wallCoordinates.add("53-"+"37");
+        this.wallCoordinates.add("54-"+"36");
+        this.wallCoordinates.add("54-"+"37");
+
+        this.wallCoordinates.add("53-"+"35");
+        this.wallCoordinates.add("54-"+"35");
+        this.wallCoordinates.add("53-"+"34");
+        this.wallCoordinates.add("54-"+"34");
+        this.wallCoordinates.add("53-"+"33");
+        this.wallCoordinates.add("54-"+"33");
+        this.wallCoordinates.add("53-"+"32");
+        this.wallCoordinates.add("54-"+"32");
+        this.wallCoordinates.add("53-"+"31");
+        this.wallCoordinates.add("54-"+"31");
+        this.wallCoordinates.add("53-"+"30");
+        this.wallCoordinates.add("54-"+"30");
+        this.wallCoordinates.add("53-"+"29");
+        this.wallCoordinates.add("54-"+"29");
+        this.wallCoordinates.add("53-"+"28");
+        this.wallCoordinates.add("54-"+"28");
+        this.wallCoordinates.add("53-"+"27");
+        this.wallCoordinates.add("54-"+"27");
+        this.wallCoordinates.add("53-"+"26");
+        this.wallCoordinates.add("54-"+"26");
+        this.wallCoordinates.add("53-"+"25");
+        this.wallCoordinates.add("54-"+"25");
+        this.wallCoordinates.add("53-"+"24");
+        this.wallCoordinates.add("54-"+"24");
+        this.wallCoordinates.add("53-"+"23");
+        this.wallCoordinates.add("54-"+"23");
+
+        for (String coord: this.wallCoordinates) {
+            int[] coords = new int[2];
+
+            String[] coordSplit = coord.split("-");
+
+            int coordX = Integer.parseInt(coordSplit[0]);
+            int coordY = Integer.parseInt(coordSplit[1]);
+
+            int[] wallPosition = coordinatesToPixel(new int[] {coordX, coordY});
+            Rectangle wallShape = new Rectangle(wallPosition[0], wallPosition[1], this.tileSize, this.tileSize);
+
+            Wall wall = new Wall();
+            wall.setWallPosition(wallPosition);
+            wall.setWallShape(wallShape);
+
+            this.walls.add(wall);
+        }
+    }
+
+    void addWallsToPane() {
+        for (Wall wall: this.walls) {
+            this.graphicsBox.getChildren().add(wall.getWallShape());
+        }
+    }
+
+    void createAndRenderNest() {
+        int[] nestPixelPosition = coordinatesToPixel(this.nestCoordintates);
+        Rectangle nestShape = new Rectangle(nestPixelPosition[0], nestPixelPosition[1], this.tileSize, this.tileSize);
+        nestShape.setFill(Color.GREEN);
+
+        this.graphicsBox.getChildren().add(nestShape);
+    }
+
+    void createAndRenderTarget() {
+        int[] targetPixelPosition = coordinatesToPixel(this.targetCoordinates);
+        Rectangle targetShape = new Rectangle(targetPixelPosition[0], targetPixelPosition[1], this.tileSize, this.tileSize);
+        targetShape.setFill(Color.RED);
+
+        this.graphicsBox.getChildren().add(targetShape);
+    }
+
+    void checkRoundEnded() {
+        Agent[] agents = this.population.getAgents();
+
+        boolean agentsAlive = false;
+
+        for (Agent agent: agents) {
+            if (agent.isAlive())
+                agentsAlive = true;
+        }
+
+        if (!agentsAlive)
+            this.roundEnded = true;
+    }
+
+    void showPopulationInformation() {
+        this.population.countPopulation();
+        this.informationGenerationNumber.setText(""+this.population.currentGeneration);
+        this.informationPopulationCount.setText(""+this.population.currentPopulationSize+" / "+this.population.fullPopulationSize);
+    }
+
+    void updateAgentPositions() {
+        Agent[] agents = this.population.getAgents();
+
+        for (Agent agent: agents) {
             if (agent.isAlive()) {
-                int[] agentPosition = Utilities.fitToBounds(agent.getCurrentPosition(), this.agentShapeSize);
-
-                this.agentShapes.get(i).setCenterX(agentPosition[0]);
-                this.agentShapes.get(i).setCenterY(agentPosition[1]);
-                this.agentShapes.get(i).setVisible(true);
-            } else {
-                this.agentShapes.get(i).setVisible(false);
+                agent.doNextMove();
             }
         }
     }
 
-    // Draw the food object on the screen
-    void drawFood() {
-        if (this.foodShouldMove) {
-            int newX = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(701-this.foodShapeSize));
-            int newY = ThreadLocalRandom.current().nextInt((this.foodShapeSize),(521-this.foodShapeSize));
+    void renderAgents() {
+        Agent[] agents = this.population.getAgents();
 
-            int[] newPositions = Utilities.fitToBounds(new int[] {newX, newY}, this.foodShapeSize);
+        for (Agent agent: agents) {
+            if (agent.isAlive()) {
+                int[] agentCoordinates = agent.getCurrentCoordinates();
 
-            this.foodShape.setX(newPositions[0]);
-            this.foodShape.setY(newPositions[1]);
+                agent.setAlive(agentInBounds(agentCoordinates));
 
-            Agent.setFoodCoords(newPositions);
-
-            this.foodShouldMove = false;
-            this.foodShape.setVisible(true);
-        } else {
-            this.foodShape.setVisible(true);
-        }
-    }
-
-    // Check what state each of the buttons should be in
-    void updateGameButtons() {
-        switch (this.gameState) {
-            case PLAYING: {
-                setButtonDisabled(true,true,true,true);
-                break;
-            }
-            case EVOLVING: {
-                setButtonDisabled(true,true,true,true);
-                break;
-            }
-            case WAITING_TO_PLAY: {
-                setButtonDisabled(false,true,false,false);
-                break;
-            }
-            case WAITING_TO_EVOLVE: {
-                setButtonDisabled(true,false,true,true);
-                break;
+                int[] agentPixelPosition = coordinatesToPixel(agentCoordinates);
+                agent.getShape().setX(agentPixelPosition[0]);
+                agent.getShape().setY(agentPixelPosition[1]);
             }
         }
     }
 
-    // Function to set button disabled status
-    void setButtonDisabled(boolean playButton, boolean evolveButton, boolean play5Button, boolean play10Button) {
-        controlButtonPlay.setDisable(playButton);
-        controlButtonEvolve.setDisable(evolveButton);
-        buttonPlayGeneration5x.setDisable(play5Button);
-        buttonPlayGeneration10x.setDisable(play10Button);
+    boolean agentInBounds(int[] agentCoordinates) {
+        // Agent is still in box
+        if (agentCoordinates[0] < 0 || agentCoordinates[0] > 69 || agentCoordinates[1] < 0 || agentCoordinates[1] > 49)
+            return false;
+
+        // If agent hit a wall
+        String coordsInWallFormat = agentCoordinates[0]+"-"+agentCoordinates[1];
+        if (this.wallCoordinates.contains(coordsInWallFormat))
+            return false;
+
+        return true;
     }
 
-    // Update the text fields
-    void updateGameText() {
-        this.informationGenerationNumber.setText(""+this.currentGenerationCount);
-        this.informationPopulationCount.setText(""+this.population.getCurrentPopulationSize()+"/"+this.fullPopulationSize);
+    void updateAgentScores() {
+        if (this.roundEnded) {
+            Agent[] agents = this.population.getAgents();
 
-        Agent bestAgent = this.population.getAgentById(this.population.getMaxScoreAgentId());
-        Agent worstAgent = this.population.getAgentById(this.population.getMinScoreAgentId());
-
-        this.fitnessCountBest.setText(""+bestAgent.getScore());
-        this.fitnessCountWorst.setText(""+worstAgent.getScore());
-        this.fitnessCountMean.setText(""+(int)this.population.getMeanScore());
-
-        this.geneticsBestId.setText(""+this.population.getMaxScoreAgentId());
-        this.geneticsBestK.setText(String.format("%.2f", bestAgent.getGene().getK()));
-        this.geneticsBestMaxSpeed.setText(String.format("%.2f", bestAgent.getGene().getMaxSpeed()));
-        this.geneticsBestMinSpeed.setText(String.format("%.2f", bestAgent.getGene().getMinSpeed()));
-        this.geneticsBestDirectionVariation.setText(String.format("%.2f", bestAgent.getGene().getDirectionVariation()));
-
-        this.geneticsWorstId.setText(""+this.population.getMinScoreAgentId());
-        this.geneticsWorstK.setText(String.format("%.2f", worstAgent.getGene().getK()));
-        this.geneticsWorstMaxSpeed.setText(String.format("%.2f",worstAgent.getGene().getMaxSpeed()));
-        this.geneticsWorstMinSpeed.setText(String.format("%.2f", worstAgent.getGene().getMinSpeed()));
-        this.geneticsWorstDirectionVariation.setText(String.format("%.2f", worstAgent.getGene().getDirectionVariation()));
-    }
-
-    // Update the count-down timer
-    void updateTimer() {
-        long difference = this.currentPlayEndTime - System.currentTimeMillis();
-
-        int secondsAsInt = (int) difference / 1000;
-        String seconds = (secondsAsInt < 10) ? "0"+secondsAsInt : ""+secondsAsInt;
-
-        int msAsInt = (int) (difference % 1000) / 10;
-        msAsInt = (msAsInt < 0) ? 0 : msAsInt;
-        String milliseconds = (msAsInt < 10) ? "0"+msAsInt : ""+msAsInt;
-
-        this.textTimeRemaining.setText(seconds+"."+milliseconds+"s");
-
-        if (secondsAsInt <= 0 && msAsInt <= 0) {
-            this.gameState = GameState.WAITING_TO_EVOLVE;
+            for (Agent agent: agents) {
+                if (!agent.isGotScore()) {
+                    int score = calculateAStarDistance(agent);
+                    // TODO: somehow add how many moves they took
+                    score = this.agentMaximumSteps - score;
+                    agent.setScore(score);
+                    agent.setGotScore(true);
+                }
+            }
+            displayScores();
         }
+
+        this.allScoresCalculated = true;
     }
 
-    // Get the latest agent scores
-    void updateScores() {
-        this.population.updateScores(this.currentPlayEndTime - (this.lengthOfEachRound * 1000));
+    int calculateAStarDistance(Agent agent) {
+        return this.astar.getScore(agent);
     }
 
-    // Update the agents' positions' and energies'
-    boolean updateAgents() {
-        return this.population.updateAgents(this.textStatus);
+    void displayScores() {
+        Agent[] agents = this.population.getAgents();
+        double totalScores = 0;
+        int maxScore = Integer.MIN_VALUE;
+        int minScore = Integer.MAX_VALUE;
+
+        for (Agent agent: agents) {
+            int score = agent.getScore();
+            totalScores += score;
+
+            if (score > maxScore)
+                maxScore = score;
+            if (score < minScore)
+                minScore = score;
+        }
+
+        double meanScore = totalScores / agents.length;
+
+        // Display the scores
+        this.fitnessCountBest.setText(""+maxScore);
+        this.fitnessCountWorst.setText(""+minScore);
+        this.fitnessCountMean.setText(""+meanScore);
     }
 
-    // Go through the evolutionary process
-    void doPopulationEvolution() {
-        this.population.doEvolution();
-        drawAgents();
+    void saveScores() {
+        Agent[] agents = this.population.getAgents();
+        double totalScores = 0;
+        int maxScore = Integer.MIN_VALUE;
+        int minScore = Integer.MAX_VALUE;
+
+        for (Agent agent: agents) {
+            int score = agent.getScore();
+            totalScores += score;
+
+            if (score > maxScore)
+                maxScore = score;
+            if (score < minScore)
+                minScore = score;
+        }
+
+        double meanScore = totalScores / agents.length;
+
+        ScoreTracker.addScore(maxScore, minScore, meanScore);
     }
 
-    // All the code that will be looped over
+    void doEvolution() {
+        if (this.roundEnded && this.allScoresCalculated) {
+            saveScores();
+            this.population.doEvolution();
+
+        }
+        resetAllFlags();
+    }
+
+    void resetAllFlags() {
+        this.roundEnded = false;
+        this.allScoresCalculated = false;
+    }
+
     void theLoop() {
-        if (this.gameState == GameState.WAITING_TO_PLAY && this.playingMultipleGenerations) {
-            if (this.generationsLeftToSkip >= 1) {
-                this.gameState = GameState.PLAYING;
-                playButtonClicked();
-            }
-        }
+        checkRoundEnded();
+        showPopulationInformation();
+        updateAgentPositions();
+        updateAgentScores();
+        renderAgents();
 
-        if (this.gameState == GameState.WAITING_TO_EVOLVE && this.playingMultipleGenerations) {
-            if (this.generationsLeftToSkip >= 1) {
-                this.gameState = GameState.EVOLVING;
-                this.currentGenerationCount++;
-                if (!this.playingEndlessMode)
-                    this.generationsLeftToSkip--;
-            } else {
-                this.playingMultipleGenerations = false;
-            }
-        }
-
-        updateGameButtons();
-
-        if (this.gameState == GameState.PLAYING ||
-            this.gameState == GameState.WAITING_TO_PLAY ||
-            this.gameState == GameState.WAITING_TO_EVOLVE ) {
-            drawAgents();
-            drawFood();
-            updateGameText();
-        }
-
-        if (this.gameState == GameState.PLAYING) {
-            updateTimer();
-            updateScores();
-            updateGameText();
-            this.foodShouldMove = updateAgents();
-        }
-
-        if (this.gameState == GameState.EVOLVING) {
-            doPopulationEvolution();
-            this.gameState = GameState.WAITING_TO_PLAY;
-        }
+        doEvolution();
     }
 }

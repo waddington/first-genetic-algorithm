@@ -14,6 +14,12 @@ public class Main extends Application {
         stage.show();
     }
 
+    @Override
+    public void stop() throws Exception {
+        ScoreTracker.saveToFile();
+        super.stop();
+    }
+
     public static void main(String[] args) {
         launch(args);
     }
